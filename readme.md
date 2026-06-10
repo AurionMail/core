@@ -1,4 +1,4 @@
-# **Aurion Core Server **
+# Aurion Core Server
 
 This repository contains the backend server for **Aurion**, written in Go.  
 It provides the API, authentication, key management, and integrations with the mail backend.
@@ -21,16 +21,24 @@ go install github.com/air-verse/air@latest
 git clone https://github.com/aurion/core.git
 cd core
 ```
-Create a `.env` file:
-
-```
-APP_PORT=8080
-```
+Create a `.env` file from the `.env.example` file, then:
 
 ```
 go mod tidy
 ```
-## **3. Run the server**
+
+## 3. Create DB
+```
+sudo -u postgres psql
+CREATE USER aurionuser WITH PASSWORD 'coolpassword';
+CREATE DATABASE auriondb OWNER aurionuser;
+\c auriondb
+GRANT ALL ON SCHEMA public TO aurionuser;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO aurionuser;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO aurionuser;
+
+```
+## **4. Run the server**
 
 ### Normal mode
 
