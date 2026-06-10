@@ -38,6 +38,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO aurionuser;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO aurionuser;
 
 ```
+Then `goose -dir internal/db/migrations postgres "host=localhost user=aurionuser password=cool dbname=auriondb sslmode=disable" up`.
 ## **4. Run the server**
 
 ### Normal mode

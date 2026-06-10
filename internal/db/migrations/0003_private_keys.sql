@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE private_keys (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -7,3 +8,6 @@ CREATE TABLE private_keys (
 );
 
 CREATE INDEX idx_private_keys_user_id ON private_keys (user_id);
+
+-- +goose Down
+DROP TABLE IF EXISTS private_keys;
