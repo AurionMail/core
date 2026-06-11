@@ -1,5 +1,7 @@
 package mail
-
+import(
+	"time"
+)
 type OutgoingMessage struct {
     From      string
     To        string

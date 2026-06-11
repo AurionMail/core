@@ -1,7 +1,11 @@
 package mail
+import (
+    "context"
+)
 
 type MailBackend interface {
     SendMessage(ctx context.Context, msg OutgoingMessage) error
+	StoreSentCopy(ctx context.Context, msg OutgoingMessage) error
     ListMessages(ctx context.Context, userID string, folder string, limit int, offset int) ([]Message, error)
     GetMessage(ctx context.Context, userID string, id string) (Message, error)
     DeleteMessage(ctx context.Context, userID string, id string) error

@@ -3,6 +3,8 @@ package mail
 import (
     "context"
     "aurion/core/internal/db/repository"
+	
+	"fmt"
 )
 
 type MailService struct {
