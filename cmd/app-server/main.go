@@ -12,7 +12,7 @@ import (
     "aurion/core/internal/db/generated"
     "aurion/core/internal/db/repository"
     "aurion/core/internal/mail"
-    //"aurion/core/internal/mail/backends/jmap"
+    "aurion/core/internal/mail/backends/jmap"
 )
 
 func main() {

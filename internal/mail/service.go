@@ -114,3 +114,11 @@ func (s *MailService) UpdateTags(ctx context.Context, userID, id string, tags []
 func (s *MailService) DeleteMessage(ctx context.Context, userID, id string) error {
     return s.backend.DeleteMessage(ctx, userID, id)
 }
+
+func (s *MailService) Search(
+    ctx context.Context,
+    userID string,
+    query string,
+) ([]Message, error) {
+    return s.backend.Search(ctx, userID, query)
+}

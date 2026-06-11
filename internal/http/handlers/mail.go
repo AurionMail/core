@@ -128,3 +128,16 @@ func (h *MailHandler) UpdateTags(c *gin.Context) {
 
     c.JSON(200, gin.H{"status": "updated"})
 }
+
+func (h *MailHandler) Search(c *gin.Context) {
+    userID := c.GetString("user_id")
+    q := c.Query("q")
+
+    msgs, err := h.service.Search(c, userID, q)
+    if err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, msgs)
+}
