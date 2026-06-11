@@ -363,7 +363,7 @@ func (b *JMAPBackend) Search(ctx context.Context, userID string, query string) (
         return nil, err
     }
 
-    // Extraction des messages
+    // extract messages
     methodResponses := resp["methodResponses"].([]interface{})
     getResp := methodResponses[1].([]interface{})[1].(map[string]interface{})
     list := getResp["list"].([]interface{})

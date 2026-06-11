@@ -47,7 +47,7 @@ func main() {
     sessionRepo := repository.NewSessionRepository(queries)
 
     // -------------------------------
-    //  MAIL BACKEND (modulaire)
+    //  MAIL BACKEND
     // -------------------------------
     backendType := os.Getenv("MAIL_BACKEND")
 
