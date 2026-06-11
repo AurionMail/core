@@ -2,6 +2,7 @@ package handlers
 
 import (
     "strings"
+    "strconv"
 
     "github.com/gin-gonic/gin"
 )
@@ -23,4 +24,15 @@ func extractBearer(c *gin.Context) string {
     }
 
     return parts[1]
+}
+
+func parseIntOrDefault(s string, def int) int {
+    if s == "" {
+        return def
+    }
+    v, err := strconv.Atoi(s)
+    if err != nil {
+        return def
+    }
+    return v
 }

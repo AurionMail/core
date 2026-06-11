@@ -23,6 +23,7 @@ type PublicKey struct {
 	ID         uuid.UUID `json:"id"`
 	UserID     uuid.UUID `json:"user_id"`
 	Email      string    `json:"email"`
+	WkdHash    string    `json:"wkd_hash"`
 	ArmoredKey string    `json:"armored_key"`
 	CreatedAt  time.Time `json:"created_at"`
 	IsPrimary  bool      `json:"is_primary"`

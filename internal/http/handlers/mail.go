@@ -89,3 +89,42 @@ func (h *MailHandler) DeleteMessage(c *gin.Context) {
     c.JSON(200, gin.H{"status": "deleted"})
 }
 
+func (h *MailHandler) SetSeen(c *gin.Context) {
+    userID := c.GetString("user_id")
+    id := c.Param("id")
+
+    var req struct {
+        Seen bool `json:"seen"`
+    }
+    if err := c.BindJSON(&req); err != nil {
+        c.JSON(400, gin.H{"error": "invalid request"})
+        return
+    }
+
+    if err := h.service.SetSeen(c, userID, id, req.Seen); err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{"status": "updated"})
+}
+
+func (h *MailHandler) UpdateTags(c *gin.Context) {
+    userID := c.GetString("user_id")
+    id := c.Param("id")
+
+    var req struct {
+        Tags []string `json:"tags"`
+    }
+    if err := c.BindJSON(&req); err != nil {
+        c.JSON(400, gin.H{"error": "invalid request"})
+        return
+    }
+
+    if err := h.service.UpdateTags(c, userID, id, req.Tags); err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{"status": "updated"})
+}

@@ -1,18 +1,25 @@
 package main
 
 import (
-	"github.com/joho/godotenv"
+    "os"
+
+    "github.com/joho/godotenv"
+
     "aurion/core/internal/config"
     "aurion/core/internal/http"
     "aurion/core/internal/log"
     "aurion/core/internal/db"
     "aurion/core/internal/db/generated"
     "aurion/core/internal/db/repository"
+    "aurion/core/internal/mail"
+    //"aurion/core/internal/mail/backends/jmap"
 )
 
 func main() {
+    // Load .env
+    _ = godotenv.Load()
+
     // Load config
-	_ = godotenv.Load()
     cfg := config.Load()
     logger := log.New(cfg.Env)
 
@@ -39,12 +46,38 @@ func main() {
     privateKeyRepo := repository.NewPrivateKeyRepository(queries)
     sessionRepo := repository.NewSessionRepository(queries)
 
-    // Pass repositories to the router (dependency injection)
-    router := http.NewRouter(logger,
+    // -------------------------------
+    //  MAIL BACKEND (modulaire)
+    // -------------------------------
+    backendType := os.Getenv("MAIL_BACKEND")
+
+    var mailBackend mail.MailBackend
+
+    switch backendType {
+    case "jmap":
+        mailBackend = jmap.NewJMAPBackend(
+            os.Getenv("JMAP_URL"),
+            os.Getenv("JMAP_USERNAME"),
+            os.Getenv("JMAP_PASSWORD"),
+        )
+    default:
+        logger.Error("Unknown MAIL_BACKEND", "backend", backendType)
+        return
+    }
+
+    // MailService
+    mailService := mail.NewMailService(mailBackend, publicKeyRepo, privateKeyRepo)
+
+    // -------------------------------
+    //  ROUTER
+    // -------------------------------
+    router := http.NewRouter(
+        logger,
         userRepo,
         publicKeyRepo,
         privateKeyRepo,
         sessionRepo,
+        mailService,
     )
 
     logger.Info("Starting Boson app-server", "port", cfg.AppPort)

@@ -6,6 +6,7 @@ import (
 	"aurion/core/internal/db/repository"
 	"aurion/core/internal/http/handlers"
     "aurion/core/internal/http/middleware"
+    "aurion/core/internal/mail"
 )
 
 func NewRouter(
@@ -14,6 +15,7 @@ func NewRouter(
     publicKeys *repository.PublicKeyRepository,
     privateKeys *repository.PrivateKeyRepository,
     sessions *repository.SessionRepository,
+    mailService *mail.MailService,
 ) *gin.Engine {
 
     r := gin.New()

@@ -41,3 +41,13 @@ func (r *PublicKeyRepository) GetPrimaryPublicKey(ctx context.Context, email str
 func (r *PublicKeyRepository) GetPrimaryPublicKeyByEmail(ctx context.Context, email string) (generated.PublicKey, error) {
     return r.q.GetPrimaryPublicKeyByEmail(ctx, email)
 }
+
+func (r *PublicKeyRepository) GetByWKDHash(ctx context.Context, hash string) (*generated.PublicKey, error) {
+    key, err := r.q.GetPublicKeyByWKDHash(ctx, hash)
+    if err != nil {
+        return nil, err
+    }
+    return &key, nil
+}
+
+

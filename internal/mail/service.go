@@ -38,8 +38,9 @@ func (s *MailService) SendEncrypted(
     //
     // check if reeceiver has pub key
     //
-    receiverPub, err := s.publicKeys.GetPrimaryPublicKeyByEmail(ctx, toEmail)
+    _, err := s.publicKeys.GetPrimaryPublicKeyByEmail(ctx, toEmail)
     hasReceiverKey := (err == nil)
+
 
     if hasReceiverKey && len(ciphertextForReceiver) == 0 {
         return fmt.Errorf("missing ciphertext for receiver while receiver has a public key")

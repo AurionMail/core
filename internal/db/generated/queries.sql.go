@@ -83,7 +83,7 @@ func (q *Queries) GetLatestPrivateKey(ctx context.Context, userID uuid.UUID) (Pr
 }
 
 const getPrimaryPublicKey = `-- name: GetPrimaryPublicKey :one
-SELECT id, user_id, email, armored_key, created_at, is_primary FROM public_keys
+SELECT id, user_id, email, wkd_hash, armored_key, created_at, is_primary FROM public_keys
 WHERE email = $1 AND is_primary = TRUE
 LIMIT 1
 `
@@ -95,6 +95,7 @@ func (q *Queries) GetPrimaryPublicKey(ctx context.Context, email string) (Public
 		&i.ID,
 		&i.UserID,
 		&i.Email,
+		&i.WkdHash,
 		&i.ArmoredKey,
 		&i.CreatedAt,
 		&i.IsPrimary,
@@ -103,7 +104,7 @@ func (q *Queries) GetPrimaryPublicKey(ctx context.Context, email string) (Public
 }
 
 const getPrimaryPublicKeyByEmail = `-- name: GetPrimaryPublicKeyByEmail :one
-SELECT id, user_id, email, armored_key, created_at, is_primary FROM public_keys
+SELECT id, user_id, email, wkd_hash, armored_key, created_at, is_primary FROM public_keys
 WHERE email = $1 AND is_primary = TRUE
 LIMIT 1
 `
@@ -115,6 +116,29 @@ func (q *Queries) GetPrimaryPublicKeyByEmail(ctx context.Context, email string) 
 		&i.ID,
 		&i.UserID,
 		&i.Email,
+		&i.WkdHash,
+		&i.ArmoredKey,
+		&i.CreatedAt,
+		&i.IsPrimary,
+	)
+	return i, err
+}
+
+const getPublicKeyByWKDHash = `-- name: GetPublicKeyByWKDHash :one
+SELECT id, user_id, email, wkd_hash, armored_key, created_at, is_primary
+FROM public_keys
+WHERE wkd_hash = $1
+LIMIT 1
+`
+
+func (q *Queries) GetPublicKeyByWKDHash(ctx context.Context, wkdHash string) (PublicKey, error) {
+	row := q.db.QueryRowContext(ctx, getPublicKeyByWKDHash, wkdHash)
+	var i PublicKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Email,
+		&i.WkdHash,
 		&i.ArmoredKey,
 		&i.CreatedAt,
 		&i.IsPrimary,
@@ -184,14 +208,15 @@ func (q *Queries) InsertPrivateKey(ctx context.Context, arg InsertPrivateKeyPara
 }
 
 const insertPublicKey = `-- name: InsertPublicKey :one
-INSERT INTO public_keys (user_id, email, armored_key, is_primary)
-VALUES ($1, $2, $3, $4)
-RETURNING id, user_id, email, armored_key, created_at, is_primary
+INSERT INTO public_keys (user_id, email, wkd_hash, armored_key, is_primary)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, user_id, email, wkd_hash, armored_key, created_at, is_primary
 `
 
 type InsertPublicKeyParams struct {
 	UserID     uuid.UUID `json:"user_id"`
 	Email      string    `json:"email"`
+	WkdHash    string    `json:"wkd_hash"`
 	ArmoredKey string    `json:"armored_key"`
 	IsPrimary  bool      `json:"is_primary"`
 }
@@ -200,6 +225,7 @@ func (q *Queries) InsertPublicKey(ctx context.Context, arg InsertPublicKeyParams
 	row := q.db.QueryRowContext(ctx, insertPublicKey,
 		arg.UserID,
 		arg.Email,
+		arg.WkdHash,
 		arg.ArmoredKey,
 		arg.IsPrimary,
 	)
@@ -208,6 +234,7 @@ func (q *Queries) InsertPublicKey(ctx context.Context, arg InsertPublicKeyParams
 		&i.ID,
 		&i.UserID,
 		&i.Email,
+		&i.WkdHash,
 		&i.ArmoredKey,
 		&i.CreatedAt,
 		&i.IsPrimary,
