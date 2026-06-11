@@ -48,7 +48,7 @@ func (s *MailService) SendEncrypted(
 
     outgoing := OutgoingMessage{
         From:        fromUserID,
-        To:          toEmail,
+        To:          []string{toEmail},
         Subject:     subject,
         Payload:     ciphertextForReceiver, // encrypted OR plaintext fallback
         Attachments: attachments,
@@ -66,7 +66,7 @@ func (s *MailService) SendEncrypted(
     //
     if err := s.backend.StoreSentCopy(ctx, OutgoingMessage{
         From:        fromUserID,
-        To:          toEmail,
+        To:          []string{toEmail},
         Subject:     subject,
         Payload:     ciphertextForSender,
         Attachments: attachments,
@@ -121,4 +121,32 @@ func (s *MailService) Search(
     query string,
 ) ([]Message, error) {
     return s.backend.Search(ctx, userID, query)
+}
+
+func (s *MailService) ListMailboxes(ctx context.Context, userID string) ([]Mailbox, error) {
+    return s.backend.ListMailboxes(ctx, userID)
+}
+
+func (s *MailService) CreateMailbox(ctx context.Context, userID, name string) error {
+    return s.backend.CreateMailbox(ctx, userID, name)
+}
+
+func (s *MailService) RenameMailbox(ctx context.Context, userID, id, name string) error {
+    return s.backend.RenameMailbox(ctx, userID, id, name)
+}
+
+func (s *MailService) DeleteMailbox(ctx context.Context, userID, id string) error {
+    return s.backend.DeleteMailbox(ctx, userID, id)
+}
+
+func (s *MailService) CreateDraft(ctx context.Context, userID string, msg OutgoingMessage) (string, error) {
+    return s.backend.CreateDraft(ctx, userID, msg)
+}
+
+func (s *MailService) UpdateDraft(ctx context.Context, userID, id string, msg OutgoingMessage) error {
+    return s.backend.UpdateDraft(ctx, userID, id, msg)
+}
+
+func (s *MailService) DeleteDraft(ctx context.Context, userID, id string) error {
+    return s.backend.DeleteDraft(ctx, userID, id)
 }

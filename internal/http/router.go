@@ -57,6 +57,18 @@ func NewRouter(
     authGroup.POST("/mail/message/:id/seen", mailHandler.SetSeen)
     authGroup.POST("/mail/message/:id/tags", mailHandler.UpdateTags)
 
+    // Mailboxes
+    authGroup.GET("/mail/mailboxes", mailHandler.ListMailboxes)
+    authGroup.POST("/mail/mailbox/create", mailHandler.CreateMailbox)
+    authGroup.POST("/mail/mailbox/rename", mailHandler.RenameMailbox)
+    authGroup.POST("/mail/mailbox/delete", mailHandler.DeleteMailbox)
+
+    // Drafts
+    authGroup.POST("/mail/draft", mailHandler.CreateDraft)
+    authGroup.PUT("/mail/draft/:id", mailHandler.UpdateDraft)
+    authGroup.DELETE("/mail/draft/:id", mailHandler.DeleteDraft)
+
+
     return r
 }
 

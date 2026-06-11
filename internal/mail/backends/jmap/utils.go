@@ -123,3 +123,19 @@ func extractAttachments(m map[string]interface{}) []mail.Attachment {
     return out
 }
 
+func getString(v interface{}) string {
+    if s, ok := v.(string); ok {
+        return s
+    }
+    return ""
+}
+
+func buildEmailers(list []string) []map[string]string {
+    out := make([]map[string]string, 0, len(list))
+    for _, addr := range list {
+        out = append(out, map[string]string{
+            "email": addr,
+        })
+    }
+    return out
+}

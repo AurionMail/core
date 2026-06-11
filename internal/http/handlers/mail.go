@@ -141,3 +141,147 @@ func (h *MailHandler) Search(c *gin.Context) {
 
     c.JSON(200, msgs)
 }
+
+func (h *MailHandler) ListMailboxes(c *gin.Context) {
+    userID := c.GetString("user_id")
+
+    boxes, err := h.service.ListMailboxes(c, userID)
+    if err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, boxes)
+}
+
+func (h *MailHandler) CreateMailbox(c *gin.Context) {
+    userID := c.GetString("user_id")
+
+    var req struct {
+        Name string `json:"name"`
+    }
+
+    if err := c.BindJSON(&req); err != nil {
+        c.JSON(400, gin.H{"error": "invalid request"})
+        return
+    }
+
+    if err := h.service.CreateMailbox(c, userID, req.Name); err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{"status": "created"})
+}
+
+func (h *MailHandler) RenameMailbox(c *gin.Context) {
+    userID := c.GetString("user_id")
+
+    var req struct {
+        ID   string `json:"id"`
+        Name string `json:"name"`
+    }
+
+    if err := c.BindJSON(&req); err != nil {
+        c.JSON(400, gin.H{"error": "invalid request"})
+        return
+    }
+
+    if err := h.service.RenameMailbox(c, userID, req.ID, req.Name); err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{"status": "renamed"})
+}
+
+func (h *MailHandler) DeleteMailbox(c *gin.Context) {
+    userID := c.GetString("user_id")
+
+    var req struct {
+        ID string `json:"id"`
+    }
+
+    if err := c.BindJSON(&req); err != nil {
+        c.JSON(400, gin.H{"error": "invalid request"})
+        return
+    }
+
+    if err := h.service.DeleteMailbox(c, userID, req.ID); err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{"status": "deleted"})
+}
+
+func (h *MailHandler) CreateDraft(c *gin.Context) {
+    userID := c.GetString("user_id")
+
+    var req struct {
+        To      []string `json:"to"`
+        Subject string   `json:"subject"`
+        Payload []byte   `json:"payload"`
+    }
+
+    if err := c.BindJSON(&req); err != nil {
+        c.JSON(400, gin.H{"error": "invalid request"})
+        return
+    }
+
+    id, err := h.service.CreateDraft(c, userID, mail.OutgoingMessage{
+        From:    userID,
+        To:      req.To,
+        Subject: req.Subject,
+        Payload: req.Payload,
+    })
+
+    if err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{"id": id})
+}
+
+func (h *MailHandler) UpdateDraft(c *gin.Context) {
+    userID := c.GetString("user_id")
+    id := c.Param("id")
+
+    var req struct {
+        To      []string `json:"to"`
+        Subject string   `json:"subject"`
+        Payload []byte   `json:"payload"`
+    }
+
+    if err := c.BindJSON(&req); err != nil {
+        c.JSON(400, gin.H{"error": "invalid request"})
+        return
+    }
+
+    err := h.service.UpdateDraft(c, userID, id, mail.OutgoingMessage{
+        From:    userID,
+        To:      req.To,
+        Subject: req.Subject,
+        Payload: req.Payload,
+    })
+
+    if err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{"status": "updated"})
+}
+
+func (h *MailHandler) DeleteDraft(c *gin.Context) {
+    userID := c.GetString("user_id")
+    id := c.Param("id")
+
+    if err := h.service.DeleteDraft(c, userID, id); err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{"status": "deleted"})
+}

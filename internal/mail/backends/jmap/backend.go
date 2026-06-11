@@ -34,9 +34,7 @@ func (b *JMAPBackend) SendMessage(ctx context.Context, msg mail.OutgoingMessage)
         "from": []map[string]string{
             {"email": msg.From},
         },
-        "to": []map[string]string{
-            {"email": msg.To},
-        },
+        "to": buildEmailers(msg.To),
     }
 
     req := map[string]interface{}{
@@ -100,9 +98,7 @@ func (b *JMAPBackend) StoreSentCopy(ctx context.Context, msg mail.OutgoingMessag
         "from": []map[string]string{
             {"email": msg.From},
         },
-        "to": []map[string]string{
-            {"email": msg.To},
-        },
+        "to": buildEmailers(msg.To),
     }
 
     req := map[string]interface{}{
@@ -385,3 +381,220 @@ func (b *JMAPBackend) Search(ctx context.Context, userID string, query string) (
     return messages, nil
 }
 
+func (b *JMAPBackend) ListMailboxes(ctx context.Context, userID string) ([]mail.Mailbox, error) {
+
+    req := map[string]interface{}{
+        "using": []string{
+            "urn:ietf:params:jmap:core",
+            "urn:ietf:params:jmap:mail",
+        },
+        "methodCalls": []interface{}{
+            []interface{}{
+                "Mailbox/get",
+                map[string]interface{}{
+                    "accountId": userID,
+                },
+                "c1",
+            },
+        },
+    }
+
+    resp, err := b.client.Call(ctx, req)
+    if err != nil {
+        return nil, err
+    }
+
+    methodResponses := resp["methodResponses"].([]interface{})
+    getResp := methodResponses[0].([]interface{})[1].(map[string]interface{})
+    list := getResp["list"].([]interface{})
+
+    out := make([]mail.Mailbox, 0, len(list))
+
+    for _, raw := range list {
+        m := raw.(map[string]interface{})
+
+        out = append(out, mail.Mailbox{
+            ID:     m["id"].(string),
+            Name:   m["name"].(string),
+            Role:   getString(m["role"]),
+            Total:  int(m["totalEmails"].(float64)),
+            Unread: int(m["unreadEmails"].(float64)),
+        })
+    }
+
+    return out, nil
+}
+
+func (b *JMAPBackend) CreateMailbox(ctx context.Context, userID, name string) error {
+    req := map[string]interface{}{
+        "using": []string{
+            "urn:ietf:params:jmap:core",
+            "urn:ietf:params:jmap:mail",
+        },
+        "methodCalls": []interface{}{
+            []interface{}{
+                "Mailbox/set",
+                map[string]interface{}{
+                    "accountId": userID,
+                    "create": map[string]interface{}{
+                        "new": map[string]interface{}{
+                            "name": name,
+                        },
+                    },
+                },
+                "c1",
+            },
+        },
+    }
+
+    _, err := b.client.Call(ctx, req)
+    return err
+}
+
+func (b *JMAPBackend) RenameMailbox(ctx context.Context, userID, id, newName string) error {
+    req := map[string]interface{}{
+        "using": []string{
+            "urn:ietf:params:jmap:core",
+            "urn:ietf:params:jmap:mail",
+        },
+        "methodCalls": []interface{}{
+            []interface{}{
+                "Mailbox/set",
+                map[string]interface{}{
+                    "accountId": userID,
+                    "update": map[string]interface{}{
+                        id: map[string]interface{}{
+                            "name": newName,
+                        },
+                    },
+                },
+                "c1",
+            },
+        },
+    }
+
+    _, err := b.client.Call(ctx, req)
+    return err
+}
+
+func (b *JMAPBackend) DeleteMailbox(ctx context.Context, userID, id string) error {
+    req := map[string]interface{}{
+        "using": []string{
+            "urn:ietf:params:jmap:core",
+            "urn:ietf:params:jmap:mail",
+        },
+        "methodCalls": []interface{}{
+            []interface{}{
+                "Mailbox/set",
+                map[string]interface{}{
+                    "accountId": userID,
+                    "destroy":   []string{id},
+                },
+                "c1",
+            },
+        },
+    }
+
+    _, err := b.client.Call(ctx, req)
+    return err
+}
+
+func (b *JMAPBackend) CreateDraft(ctx context.Context, userID string, msg mail.OutgoingMessage) (string, error) {
+
+    req := map[string]interface{}{
+        "using": []string{
+            "urn:ietf:params:jmap:core",
+            "urn:ietf:params:jmap:mail",
+        },
+        "methodCalls": []interface{}{
+            []interface{}{
+                "Email/set",
+                map[string]interface{}{
+                    "accountId": userID,
+                    "create": map[string]interface{}{
+                        "draft": map[string]interface{}{
+                            "mailboxIds": map[string]bool{
+                                "drafts": true,
+                            },
+                            "subject": msg.Subject,
+                            "to":      buildEmailers(msg.To),
+                            "bodyValues": map[string]interface{}{
+                                "body": map[string]interface{}{
+                                    "value": string(msg.Payload),
+                                },
+                            },
+                        },
+                    },
+                },
+                "c1",
+            },
+        },
+    }
+
+    resp, err := b.client.Call(ctx, req)
+    if err != nil {
+        return "", err
+    }
+
+    methodResponses := resp["methodResponses"].([]interface{})
+    setResp := methodResponses[0].([]interface{})[1].(map[string]interface{})
+    created := setResp["created"].(map[string]interface{})
+    draft := created["draft"].(map[string]interface{})
+
+    return draft["id"].(string), nil
+}
+
+func (b *JMAPBackend) UpdateDraft(ctx context.Context, userID, id string, msg mail.OutgoingMessage) error {
+
+    req := map[string]interface{}{
+        "using": []string{
+            "urn:ietf:params:jmap:core",
+            "urn:ietf:params:jmap:mail",
+        },
+        "methodCalls": []interface{}{
+            []interface{}{
+                "Email/set",
+                map[string]interface{}{
+                    "accountId": userID,
+                    "update": map[string]interface{}{
+                        id: map[string]interface{}{
+                            "subject": msg.Subject,
+                            "to":      buildEmailers(msg.To),
+                            "bodyValues": map[string]interface{}{
+                                "body": map[string]interface{}{
+                                    "value": string(msg.Payload),
+                                },
+                            },
+                        },
+                    },
+                },
+                "c1",
+            },
+        },
+    }
+
+    _, err := b.client.Call(ctx, req)
+    return err
+}
+
+func (b *JMAPBackend) DeleteDraft(ctx context.Context, userID, id string) error {
+    req := map[string]interface{}{
+        "using": []string{
+            "urn:ietf:params:jmap:core",
+            "urn:ietf:params:jmap:mail",
+        },
+        "methodCalls": []interface{}{
+            []interface{}{
+                "Email/set",
+                map[string]interface{}{
+                    "accountId": userID,
+                    "destroy":   []string{id},
+                },
+                "c1",
+            },
+        },
+    }
+
+    _, err := b.client.Call(ctx, req)
+    return err
+}
