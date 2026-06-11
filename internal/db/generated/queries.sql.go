@@ -102,6 +102,26 @@ func (q *Queries) GetPrimaryPublicKey(ctx context.Context, email string) (Public
 	return i, err
 }
 
+const getPrimaryPublicKeyByEmail = `-- name: GetPrimaryPublicKeyByEmail :one
+SELECT id, user_id, email, armored_key, created_at, is_primary FROM public_keys
+WHERE email = $1 AND is_primary = TRUE
+LIMIT 1
+`
+
+func (q *Queries) GetPrimaryPublicKeyByEmail(ctx context.Context, email string) (PublicKey, error) {
+	row := q.db.QueryRowContext(ctx, getPrimaryPublicKeyByEmail, email)
+	var i PublicKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Email,
+		&i.ArmoredKey,
+		&i.CreatedAt,
+		&i.IsPrimary,
+	)
+	return i, err
+}
+
 const getSessionByToken = `-- name: GetSessionByToken :one
 SELECT id, user_id, token, created_at, expires_at FROM sessions
 WHERE token = $1

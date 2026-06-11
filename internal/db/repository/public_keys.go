@@ -37,3 +37,7 @@ func (r *PublicKeyRepository) InsertPublicKey(
 func (r *PublicKeyRepository) GetPrimaryPublicKey(ctx context.Context, email string) (generated.PublicKey, error) {
     return r.q.GetPrimaryPublicKey(ctx, email)
 }
+
+func (r *PublicKeyRepository) GetPrimaryPublicKeyByEmail(ctx context.Context, email string) (generated.PublicKey, error) {
+    return r.q.GetPrimaryPublicKeyByEmail(ctx, email)
+}

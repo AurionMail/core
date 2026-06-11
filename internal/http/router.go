@@ -5,6 +5,7 @@ import (
     "log/slog"
 	"aurion/core/internal/db/repository"
 	"aurion/core/internal/http/handlers"
+    "aurion/core/internal/http/middleware"
 )
 
 func NewRouter(
@@ -20,14 +21,23 @@ func NewRouter(
 
     auth := handlers.NewAuthHandler(users, sessions)
 
-    r.POST("/auth/signup", auth.Signup)
-    r.POST("/auth/login", auth.Login)
-    r.GET("/auth/session", auth.Session)
-
     r.GET("/health", func(c *gin.Context) {
 		logger.Info("healthcheck")
         c.JSON(200, gin.H{"status": "ok"})
     })
+
+    r.POST("/auth/signup", auth.Signup)
+    r.POST("/auth/login", auth.Login)
+    r.GET("/auth/session", auth.Session)
+
+    keyHandler := handlers.NewKeyHandler(publicKeys, privateKeys)
+    r.GET("/keys/public/:email", keyHandler.GetPublicKey)
+
+    authGroup := r.Group("/")
+    authGroup.Use(middleware.AuthMiddleware(sessions)) // middleware Bearer
+    authGroup.POST("/keys/public", keyHandler.UploadPublicKey)
+    authGroup.POST("/keys/private", keyHandler.UploadPrivateKey)
+    authGroup.GET("/keys/private/me", keyHandler.GetPrivateKey)
 
     return r
 }

@@ -36,3 +36,8 @@ RETURNING *;
 -- name: GetSessionByToken :one
 SELECT * FROM sessions
 WHERE token = $1;
+
+-- name: GetPrimaryPublicKeyByEmail :one
+SELECT * FROM public_keys
+WHERE email = $1 AND is_primary = TRUE
+LIMIT 1;
