@@ -6,48 +6,40 @@ import (
 	"github.com/google/uuid"
 )
 
-type PublicKeyRepository struct {
+type IdentityPublicKeyRepository struct {
     q *generated.Queries
 }
 
-func NewPublicKeyRepository(q *generated.Queries) *PublicKeyRepository {
-    return &PublicKeyRepository{q}
+func NewIdentityPublicKeyRepository(q *generated.Queries) *IdentityPublicKeyRepository {
+    return &IdentityPublicKeyRepository{q}
 }
 
-func (r *PublicKeyRepository) InsertPublicKey(
+func (r *IdentityPublicKeyRepository) InsertPublicKey(
     ctx context.Context,
-    userID string,
-    email string,
+    identityID uuid.UUID,
     armoredKey string,
-    isPrimary bool,
-) (generated.PublicKey, error) {
-    uid, err := uuid.Parse(userID)
-	if err != nil {
-		return generated.PublicKey{}, err
-	}
+    wkdHash string,
+    isActive bool,
+) (generated.IdentityPublicKey, error) {
 
-	return r.q.InsertPublicKey(ctx, generated.InsertPublicKeyParams{
-		UserID:     uid,
-		Email:      email,
-		ArmoredKey: armoredKey,
-		IsPrimary:  isPrimary,
-	})
+
+    return r.q.InsertIdentityPublicKey(ctx, generated.InsertIdentityPublicKeyParams{
+        IdentityID: identityID,
+        ArmoredKey: armoredKey,
+        WkdHash:    wkdHash,
+        IsActive:   isActive,
+    })
 }
 
-func (r *PublicKeyRepository) GetPrimaryPublicKey(ctx context.Context, email string) (generated.PublicKey, error) {
-    return r.q.GetPrimaryPublicKey(ctx, email)
+func (r *IdentityPublicKeyRepository) GetActiveKeysByIdentity(ctx context.Context, identityID uuid.UUID) ([]generated.IdentityPublicKey, error) {
+  
+    return r.q.GetActiveIdentityPublicKeys(ctx, identityID)
 }
 
-func (r *PublicKeyRepository) GetPrimaryPublicKeyByEmail(ctx context.Context, email string) (generated.PublicKey, error) {
-    return r.q.GetPrimaryPublicKeyByEmail(ctx, email)
-}
-
-func (r *PublicKeyRepository) GetByWKDHash(ctx context.Context, hash string) (*generated.PublicKey, error) {
-    key, err := r.q.GetPublicKeyByWKDHash(ctx, hash)
+func (r *IdentityPublicKeyRepository) GetByWKDHash(ctx context.Context, hash string) (*generated.IdentityPublicKey, error) {
+    key, err := r.q.GetIdentityPublicKeyByWKDHash(ctx, hash)
     if err != nil {
         return nil, err
     }
     return &key, nil
 }
-
-

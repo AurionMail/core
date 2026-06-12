@@ -40,10 +40,16 @@ func main() {
     // Initialize SQLC
     queries := generated.New(dbConn)
 
-    // Initialize repositories
+    // -------------------------------
+    //  REPOSITORIES (nouveau modèle)
+    // -------------------------------
     userRepo := repository.NewUserRepository(queries)
-    publicKeyRepo := repository.NewPublicKeyRepository(queries)
-    privateKeyRepo := repository.NewPrivateKeyRepository(queries)
+
+    identityRepo := repository.NewIdentityRepository(queries)
+    identityPublicKeyRepo := repository.NewIdentityPublicKeyRepository(queries)
+    identityPrivateKeyRepo := repository.NewIdentityPrivateKeyRepository(queries)
+    identityMemberRepo := repository.NewIdentityMemberRepository(queries)
+
     sessionRepo := repository.NewSessionRepository(queries)
 
     // -------------------------------
@@ -66,7 +72,12 @@ func main() {
     }
 
     // MailService
-    mailService := mail.NewMailService(mailBackend, publicKeyRepo, privateKeyRepo)
+    mailService := mail.NewMailService(
+        mailBackend,
+        identityRepo,
+        identityPublicKeyRepo,
+        identityPrivateKeyRepo,
+    )
 
     // -------------------------------
     //  ROUTER
@@ -74,8 +85,10 @@ func main() {
     router := http.NewRouter(
         logger,
         userRepo,
-        publicKeyRepo,
-        privateKeyRepo,
+        identityRepo,
+        identityPublicKeyRepo,
+        identityPrivateKeyRepo,
+        identityMemberRepo,
         sessionRepo,
         mailService,
     )

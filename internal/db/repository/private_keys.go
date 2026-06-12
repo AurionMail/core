@@ -7,37 +7,48 @@ import (
     "github.com/google/uuid"
 )
 
-type PrivateKeyRepository struct {
+type IdentityPrivateKeyRepository struct {
     q *generated.Queries
 }
 
-func NewPrivateKeyRepository(q *generated.Queries) *PrivateKeyRepository {
-    return &PrivateKeyRepository{q}
+func NewIdentityPrivateKeyRepository(q *generated.Queries) *IdentityPrivateKeyRepository {
+    return &IdentityPrivateKeyRepository{q}
 }
 
-func (r *PrivateKeyRepository) InsertPrivateKey(
+func (r *IdentityPrivateKeyRepository) InsertPrivateKey(
     ctx context.Context,
+    identityID uuid.UUID,
     userID string,
-    armoredEncryptedKey string,
-) (generated.PrivateKey, error) {
+    encryptedPrivateKey string,
+) (generated.IdentityPrivateKey, error) {
 
+    
     uid, err := uuid.Parse(userID)
     if err != nil {
-        return generated.PrivateKey{}, err
+        return generated.IdentityPrivateKey{}, err
     }
 
-    return r.q.InsertPrivateKey(ctx, generated.InsertPrivateKeyParams{
+    return r.q.InsertIdentityPrivateKey(ctx, generated.InsertIdentityPrivateKeyParams{
+        IdentityID:          identityID,
         UserID:              uid,
-        ArmoredEncryptedKey: armoredEncryptedKey,
+        EncryptedPrivateKey: encryptedPrivateKey,
     })
 }
 
-func (r *PrivateKeyRepository) GetLatestPrivateKey(ctx context.Context, userID string) (generated.PrivateKey, error) {
+func (r *IdentityPrivateKeyRepository) GetForUserIdentity(
+    ctx context.Context,
+    identityID uuid.UUID,
+    userID string,
+) (generated.IdentityPrivateKey, error) {
 
+   
     uid, err := uuid.Parse(userID)
     if err != nil {
-        return generated.PrivateKey{}, err
+        return generated.IdentityPrivateKey{}, err
     }
 
-    return r.q.GetLatestPrivateKey(ctx, uid)
+    return r.q.GetIdentityPrivateKey(ctx, generated.GetIdentityPrivateKeyParams{
+        IdentityID: identityID,
+        UserID:     uid,
+    })
 }

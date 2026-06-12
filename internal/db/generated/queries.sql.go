@@ -12,6 +12,91 @@ import (
 	"github.com/google/uuid"
 )
 
+const addIdentityMember = `-- name: AddIdentityMember :exec
+INSERT INTO identity_members (identity_id, user_id)
+VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type AddIdentityMemberParams struct {
+	IdentityID uuid.UUID `json:"identity_id"`
+	UserID     uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) AddIdentityMember(ctx context.Context, arg AddIdentityMemberParams) error {
+	_, err := q.db.ExecContext(ctx, addIdentityMember, arg.IdentityID, arg.UserID)
+	return err
+}
+
+const createIdentity = `-- name: CreateIdentity :one
+INSERT INTO identities (email, type)
+VALUES ($1, $2)
+RETURNING id, email, type, created_at
+`
+
+type CreateIdentityParams struct {
+	Email string `json:"email"`
+	Type  string `json:"type"`
+}
+
+func (q *Queries) CreateIdentity(ctx context.Context, arg CreateIdentityParams) (Identity, error) {
+	row := q.db.QueryRowContext(ctx, createIdentity, arg.Email, arg.Type)
+	var i Identity
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Type,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createRoutingAlias = `-- name: CreateRoutingAlias :one
+INSERT INTO routing_aliases (source_email, target_identity_id)
+VALUES ($1, $2)
+RETURNING id, source_email, target_identity_id, created_at
+`
+
+type CreateRoutingAliasParams struct {
+	SourceEmail      string    `json:"source_email"`
+	TargetIdentityID uuid.UUID `json:"target_identity_id"`
+}
+
+func (q *Queries) CreateRoutingAlias(ctx context.Context, arg CreateRoutingAliasParams) (RoutingAlias, error) {
+	row := q.db.QueryRowContext(ctx, createRoutingAlias, arg.SourceEmail, arg.TargetIdentityID)
+	var i RoutingAlias
+	err := row.Scan(
+		&i.ID,
+		&i.SourceEmail,
+		&i.TargetIdentityID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createRoutingCatchall = `-- name: CreateRoutingCatchall :one
+INSERT INTO routing_catchall (domain, target_identity_id)
+VALUES ($1, $2)
+RETURNING id, domain, target_identity_id, created_at
+`
+
+type CreateRoutingCatchallParams struct {
+	Domain           string    `json:"domain"`
+	TargetIdentityID uuid.UUID `json:"target_identity_id"`
+}
+
+func (q *Queries) CreateRoutingCatchall(ctx context.Context, arg CreateRoutingCatchallParams) (RoutingCatchall, error) {
+	row := q.db.QueryRowContext(ctx, createRoutingCatchall, arg.Domain, arg.TargetIdentityID)
+	var i RoutingCatchall
+	err := row.Scan(
+		&i.ID,
+		&i.Domain,
+		&i.TargetIdentityID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createSession = `-- name: CreateSession :one
 INSERT INTO sessions (user_id, token, expires_at)
 VALUES ($1, $2, $3)
@@ -62,86 +147,206 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
-const getLatestPrivateKey = `-- name: GetLatestPrivateKey :one
-SELECT id, user_id, armored_encrypted_key, created_at, last_used_at FROM private_keys
-WHERE user_id = $1
+const deactivateAllIdentityPublicKeys = `-- name: DeactivateAllIdentityPublicKeys :exec
+UPDATE identity_public_keys
+SET is_active = FALSE
+WHERE identity_id = $1
+`
+
+func (q *Queries) DeactivateAllIdentityPublicKeys(ctx context.Context, identityID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deactivateAllIdentityPublicKeys, identityID)
+	return err
+}
+
+const deleteIdentityPrivateKey = `-- name: DeleteIdentityPrivateKey :exec
+DELETE FROM identity_private_keys
+WHERE identity_id = $1 AND user_id = $2
+`
+
+type DeleteIdentityPrivateKeyParams struct {
+	IdentityID uuid.UUID `json:"identity_id"`
+	UserID     uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) DeleteIdentityPrivateKey(ctx context.Context, arg DeleteIdentityPrivateKeyParams) error {
+	_, err := q.db.ExecContext(ctx, deleteIdentityPrivateKey, arg.IdentityID, arg.UserID)
+	return err
+}
+
+const deleteRoutingAlias = `-- name: DeleteRoutingAlias :exec
+DELETE FROM routing_aliases
+WHERE source_email = $1
+`
+
+func (q *Queries) DeleteRoutingAlias(ctx context.Context, sourceEmail string) error {
+	_, err := q.db.ExecContext(ctx, deleteRoutingAlias, sourceEmail)
+	return err
+}
+
+const deleteRoutingCatchall = `-- name: DeleteRoutingCatchall :exec
+DELETE FROM routing_catchall
+WHERE domain = $1
+`
+
+func (q *Queries) DeleteRoutingCatchall(ctx context.Context, domain string) error {
+	_, err := q.db.ExecContext(ctx, deleteRoutingCatchall, domain)
+	return err
+}
+
+const getActiveIdentityPublicKeys = `-- name: GetActiveIdentityPublicKeys :many
+SELECT id, identity_id, wkd_hash, armored_key, is_active, created_at
+FROM identity_public_keys
+WHERE identity_id = $1 AND is_active = TRUE
 ORDER BY created_at DESC
-LIMIT 1
 `
 
-func (q *Queries) GetLatestPrivateKey(ctx context.Context, userID uuid.UUID) (PrivateKey, error) {
-	row := q.db.QueryRowContext(ctx, getLatestPrivateKey, userID)
-	var i PrivateKey
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.ArmoredEncryptedKey,
-		&i.CreatedAt,
-		&i.LastUsedAt,
-	)
-	return i, err
+func (q *Queries) GetActiveIdentityPublicKeys(ctx context.Context, identityID uuid.UUID) ([]IdentityPublicKey, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveIdentityPublicKeys, identityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []IdentityPublicKey
+	for rows.Next() {
+		var i IdentityPublicKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.IdentityID,
+			&i.WkdHash,
+			&i.ArmoredKey,
+			&i.IsActive,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
-const getPrimaryPublicKey = `-- name: GetPrimaryPublicKey :one
-SELECT id, user_id, email, wkd_hash, armored_key, created_at, is_primary FROM public_keys
-WHERE email = $1 AND is_primary = TRUE
+const getIdentityByEmail = `-- name: GetIdentityByEmail :one
+SELECT id, email, type, created_at
+FROM identities
+WHERE email = $1
 LIMIT 1
 `
 
-func (q *Queries) GetPrimaryPublicKey(ctx context.Context, email string) (PublicKey, error) {
-	row := q.db.QueryRowContext(ctx, getPrimaryPublicKey, email)
-	var i PublicKey
+func (q *Queries) GetIdentityByEmail(ctx context.Context, email string) (Identity, error) {
+	row := q.db.QueryRowContext(ctx, getIdentityByEmail, email)
+	var i Identity
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
 		&i.Email,
-		&i.WkdHash,
-		&i.ArmoredKey,
+		&i.Type,
 		&i.CreatedAt,
-		&i.IsPrimary,
 	)
 	return i, err
 }
 
-const getPrimaryPublicKeyByEmail = `-- name: GetPrimaryPublicKeyByEmail :one
-SELECT id, user_id, email, wkd_hash, armored_key, created_at, is_primary FROM public_keys
-WHERE email = $1 AND is_primary = TRUE
+const getIdentityByID = `-- name: GetIdentityByID :one
+SELECT id, email, type, created_at
+FROM identities
+WHERE id = $1
+`
+
+func (q *Queries) GetIdentityByID(ctx context.Context, id uuid.UUID) (Identity, error) {
+	row := q.db.QueryRowContext(ctx, getIdentityByID, id)
+	var i Identity
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Type,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getIdentityPrivateKey = `-- name: GetIdentityPrivateKey :one
+SELECT id, identity_id, user_id, encrypted_private_key, created_at
+FROM identity_private_keys
+WHERE identity_id = $1 AND user_id = $2
 LIMIT 1
 `
 
-func (q *Queries) GetPrimaryPublicKeyByEmail(ctx context.Context, email string) (PublicKey, error) {
-	row := q.db.QueryRowContext(ctx, getPrimaryPublicKeyByEmail, email)
-	var i PublicKey
+type GetIdentityPrivateKeyParams struct {
+	IdentityID uuid.UUID `json:"identity_id"`
+	UserID     uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetIdentityPrivateKey(ctx context.Context, arg GetIdentityPrivateKeyParams) (IdentityPrivateKey, error) {
+	row := q.db.QueryRowContext(ctx, getIdentityPrivateKey, arg.IdentityID, arg.UserID)
+	var i IdentityPrivateKey
 	err := row.Scan(
 		&i.ID,
+		&i.IdentityID,
 		&i.UserID,
-		&i.Email,
-		&i.WkdHash,
-		&i.ArmoredKey,
+		&i.EncryptedPrivateKey,
 		&i.CreatedAt,
-		&i.IsPrimary,
 	)
 	return i, err
 }
 
-const getPublicKeyByWKDHash = `-- name: GetPublicKeyByWKDHash :one
-SELECT id, user_id, email, wkd_hash, armored_key, created_at, is_primary
-FROM public_keys
+const getIdentityPublicKeyByWKDHash = `-- name: GetIdentityPublicKeyByWKDHash :one
+SELECT id, identity_id, wkd_hash, armored_key, is_active, created_at
+FROM identity_public_keys
 WHERE wkd_hash = $1
 LIMIT 1
 `
 
-func (q *Queries) GetPublicKeyByWKDHash(ctx context.Context, wkdHash string) (PublicKey, error) {
-	row := q.db.QueryRowContext(ctx, getPublicKeyByWKDHash, wkdHash)
-	var i PublicKey
+func (q *Queries) GetIdentityPublicKeyByWKDHash(ctx context.Context, wkdHash string) (IdentityPublicKey, error) {
+	row := q.db.QueryRowContext(ctx, getIdentityPublicKeyByWKDHash, wkdHash)
+	var i IdentityPublicKey
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
-		&i.Email,
+		&i.IdentityID,
 		&i.WkdHash,
 		&i.ArmoredKey,
+		&i.IsActive,
 		&i.CreatedAt,
-		&i.IsPrimary,
+	)
+	return i, err
+}
+
+const getRoutingAlias = `-- name: GetRoutingAlias :one
+SELECT id, source_email, target_identity_id, created_at
+FROM routing_aliases
+WHERE source_email = $1
+LIMIT 1
+`
+
+func (q *Queries) GetRoutingAlias(ctx context.Context, sourceEmail string) (RoutingAlias, error) {
+	row := q.db.QueryRowContext(ctx, getRoutingAlias, sourceEmail)
+	var i RoutingAlias
+	err := row.Scan(
+		&i.ID,
+		&i.SourceEmail,
+		&i.TargetIdentityID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getRoutingCatchall = `-- name: GetRoutingCatchall :one
+SELECT id, domain, target_identity_id, created_at
+FROM routing_catchall
+WHERE domain = $1
+LIMIT 1
+`
+
+func (q *Queries) GetRoutingCatchall(ctx context.Context, domain string) (RoutingCatchall, error) {
+	row := q.db.QueryRowContext(ctx, getRoutingCatchall, domain)
+	var i RoutingCatchall
+	err := row.Scan(
+		&i.ID,
+		&i.Domain,
+		&i.TargetIdentityID,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -183,61 +388,165 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 	return i, err
 }
 
-const insertPrivateKey = `-- name: InsertPrivateKey :one
-INSERT INTO private_keys (user_id, armored_encrypted_key)
-VALUES ($1, $2)
-RETURNING id, user_id, armored_encrypted_key, created_at, last_used_at
+const insertIdentityPrivateKey = `-- name: InsertIdentityPrivateKey :one
+INSERT INTO identity_private_keys (identity_id, user_id, encrypted_private_key)
+VALUES ($1, $2, $3)
+RETURNING id, identity_id, user_id, encrypted_private_key, created_at
 `
 
-type InsertPrivateKeyParams struct {
+type InsertIdentityPrivateKeyParams struct {
+	IdentityID          uuid.UUID `json:"identity_id"`
 	UserID              uuid.UUID `json:"user_id"`
-	ArmoredEncryptedKey string    `json:"armored_encrypted_key"`
+	EncryptedPrivateKey string    `json:"encrypted_private_key"`
 }
 
-func (q *Queries) InsertPrivateKey(ctx context.Context, arg InsertPrivateKeyParams) (PrivateKey, error) {
-	row := q.db.QueryRowContext(ctx, insertPrivateKey, arg.UserID, arg.ArmoredEncryptedKey)
-	var i PrivateKey
+func (q *Queries) InsertIdentityPrivateKey(ctx context.Context, arg InsertIdentityPrivateKeyParams) (IdentityPrivateKey, error) {
+	row := q.db.QueryRowContext(ctx, insertIdentityPrivateKey, arg.IdentityID, arg.UserID, arg.EncryptedPrivateKey)
+	var i IdentityPrivateKey
 	err := row.Scan(
 		&i.ID,
+		&i.IdentityID,
 		&i.UserID,
-		&i.ArmoredEncryptedKey,
+		&i.EncryptedPrivateKey,
 		&i.CreatedAt,
-		&i.LastUsedAt,
 	)
 	return i, err
 }
 
-const insertPublicKey = `-- name: InsertPublicKey :one
-INSERT INTO public_keys (user_id, email, wkd_hash, armored_key, is_primary)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, user_id, email, wkd_hash, armored_key, created_at, is_primary
+const insertIdentityPublicKey = `-- name: InsertIdentityPublicKey :one
+INSERT INTO identity_public_keys (identity_id, armored_key, wkd_hash, is_active)
+VALUES ($1, $2, $3, $4)
+RETURNING id, identity_id, wkd_hash, armored_key, is_active, created_at
 `
 
-type InsertPublicKeyParams struct {
-	UserID     uuid.UUID `json:"user_id"`
-	Email      string    `json:"email"`
-	WkdHash    string    `json:"wkd_hash"`
+type InsertIdentityPublicKeyParams struct {
+	IdentityID uuid.UUID `json:"identity_id"`
 	ArmoredKey string    `json:"armored_key"`
-	IsPrimary  bool      `json:"is_primary"`
+	WkdHash    string    `json:"wkd_hash"`
+	IsActive   bool      `json:"is_active"`
 }
 
-func (q *Queries) InsertPublicKey(ctx context.Context, arg InsertPublicKeyParams) (PublicKey, error) {
-	row := q.db.QueryRowContext(ctx, insertPublicKey,
-		arg.UserID,
-		arg.Email,
-		arg.WkdHash,
+func (q *Queries) InsertIdentityPublicKey(ctx context.Context, arg InsertIdentityPublicKeyParams) (IdentityPublicKey, error) {
+	row := q.db.QueryRowContext(ctx, insertIdentityPublicKey,
+		arg.IdentityID,
 		arg.ArmoredKey,
-		arg.IsPrimary,
+		arg.WkdHash,
+		arg.IsActive,
 	)
-	var i PublicKey
+	var i IdentityPublicKey
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
-		&i.Email,
+		&i.IdentityID,
 		&i.WkdHash,
 		&i.ArmoredKey,
+		&i.IsActive,
 		&i.CreatedAt,
-		&i.IsPrimary,
+	)
+	return i, err
+}
+
+const listIdentitiesForUser = `-- name: ListIdentitiesForUser :many
+SELECT i.id, i.email, i.type, i.created_at
+FROM identity_members m
+JOIN identities i ON i.id = m.identity_id
+WHERE m.user_id = $1
+`
+
+func (q *Queries) ListIdentitiesForUser(ctx context.Context, userID uuid.UUID) ([]Identity, error) {
+	rows, err := q.db.QueryContext(ctx, listIdentitiesForUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Identity
+	for rows.Next() {
+		var i Identity
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Type,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listIdentityMembers = `-- name: ListIdentityMembers :many
+SELECT users.id, users.email, users.password_hash, users.created_at, users.updated_at, users.is_active
+FROM identity_members
+JOIN users ON users.id = identity_members.user_id
+WHERE identity_members.identity_id = $1
+`
+
+func (q *Queries) ListIdentityMembers(ctx context.Context, identityID uuid.UUID) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listIdentityMembers, identityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.PasswordHash,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.IsActive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const removeIdentityMember = `-- name: RemoveIdentityMember :exec
+DELETE FROM identity_members
+WHERE identity_id = $1 AND user_id = $2
+`
+
+type RemoveIdentityMemberParams struct {
+	IdentityID uuid.UUID `json:"identity_id"`
+	UserID     uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) RemoveIdentityMember(ctx context.Context, arg RemoveIdentityMemberParams) error {
+	_, err := q.db.ExecContext(ctx, removeIdentityMember, arg.IdentityID, arg.UserID)
+	return err
+}
+
+const resolveIdentityByEmail = `-- name: ResolveIdentityByEmail :one
+SELECT i.id, i.email, i.type, i.created_at
+FROM identities i
+WHERE i.email = $1
+LIMIT 1
+`
+
+func (q *Queries) ResolveIdentityByEmail(ctx context.Context, email string) (Identity, error) {
+	row := q.db.QueryRowContext(ctx, resolveIdentityByEmail, email)
+	var i Identity
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Type,
+		&i.CreatedAt,
 	)
 	return i, err
 }

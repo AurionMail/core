@@ -2,23 +2,30 @@ package mail
 
 import (
     "context"
+    "fmt"
+    "aurion/core/internal/wkd"
     "aurion/core/internal/db/repository"
-	
-	"fmt"
 )
 
 type MailService struct {
     backend     MailBackend
-    publicKeys  *repository.PublicKeyRepository
-    privateKeys *repository.PrivateKeyRepository
+    identities  *repository.IdentityRepository
+    publicKeys  *repository.IdentityPublicKeyRepository
+    privateKeys *repository.IdentityPrivateKeyRepository
 }
 
 func NewMailService(
     backend MailBackend,
-    pub *repository.PublicKeyRepository,
-    priv *repository.PrivateKeyRepository,
+    identities *repository.IdentityRepository,
+    pub *repository.IdentityPublicKeyRepository,
+    priv *repository.IdentityPrivateKeyRepository,
 ) *MailService {
-    return &MailService{backend, pub, priv}
+    return &MailService{
+        backend:     backend,
+        identities:  identities,
+        publicKeys:  pub,
+        privateKeys: priv,
+    }
 }
 
 func (s *MailService) SendEncrypted(
@@ -26,8 +33,8 @@ func (s *MailService) SendEncrypted(
     fromUserID string,
     toEmail string,
     subject string,
-    ciphertextForSender []byte,    // always encrypted with sender key
-    ciphertextForReceiver []byte,  // encrypted for receiver OR plaintext fallback
+    ciphertextForSender []byte,
+    ciphertextForReceiver []byte,
     attachments []Attachment,
 ) error {
 
@@ -36,33 +43,42 @@ func (s *MailService) SendEncrypted(
     }
 
     //
-    // check if reeceiver has pub key
+    // 1. check for key with WKD
     //
-    _, err := s.publicKeys.GetPrimaryPublicKeyByEmail(ctx, toEmail)
-    hasReceiverKey := (err == nil)
+    hasReceiverKey := false
 
+    extKey, err := wkd.LookupWKD(toEmail)
+    if err == nil && extKey != "" {
+        hasReceiverKey = true
+    }
 
+    //
+    // 2. if key
+    //
     if hasReceiverKey && len(ciphertextForReceiver) == 0 {
         return fmt.Errorf("missing ciphertext for receiver while receiver has a public key")
     }
 
+    //
+    // 3. constrcut message
+    //
     outgoing := OutgoingMessage{
         From:        fromUserID,
         To:          []string{toEmail},
         Subject:     subject,
-        Payload:     ciphertextForReceiver, // encrypted OR plaintext fallback
+        Payload:     ciphertextForReceiver, // chiffré ou plaintext fallback
         Attachments: attachments,
     }
 
     //
-    // 5. send with backend
+    // 4. send via backend
     //
     if err := s.backend.SendMessage(ctx, outgoing); err != nil {
         return err
     }
 
     //
-    // 6. store sender's copy
+    // 5. store encrypted copy
     //
     if err := s.backend.StoreSentCopy(ctx, OutgoingMessage{
         From:        fromUserID,
@@ -77,29 +93,11 @@ func (s *MailService) SendEncrypted(
     return nil
 }
 
-
-func (s *MailService) GetMessage(
-    ctx context.Context,
-    userID string,
-    id string,
-) (Message, error) {
-
-    msg, err := s.backend.GetMessage(ctx, userID, id)
-    if err != nil {
-        return Message{}, err
-    }
-
-    
-    return msg, nil
+func (s *MailService) GetMessage(ctx context.Context, userID string, id string) (Message, error) {
+    return s.backend.GetMessage(ctx, userID, id)
 }
 
-func (s *MailService) ListMessages(
-    ctx context.Context,
-    userID string,
-    folder string,
-    limit int,
-    offset int,
-) ([]Message, error) {
+func (s *MailService) ListMessages(ctx context.Context, userID string, folder string, limit int, offset int) ([]Message, error) {
     return s.backend.ListMessages(ctx, userID, folder, limit, offset)
 }
 
@@ -115,11 +113,7 @@ func (s *MailService) DeleteMessage(ctx context.Context, userID, id string) erro
     return s.backend.DeleteMessage(ctx, userID, id)
 }
 
-func (s *MailService) Search(
-    ctx context.Context,
-    userID string,
-    query string,
-) ([]Message, error) {
+func (s *MailService) Search(ctx context.Context, userID string, query string) ([]Message, error) {
     return s.backend.Search(ctx, userID, query)
 }
 

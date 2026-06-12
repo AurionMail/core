@@ -6,17 +6,25 @@ import (
 )
 
 type KeyHandler struct {
-    PublicKeys  *repository.PublicKeyRepository
-    PrivateKeys *repository.PrivateKeyRepository
+    Identities   *repository.IdentityRepository
+    PublicKeys   *repository.IdentityPublicKeyRepository
+    PrivateKeys  *repository.IdentityPrivateKeyRepository
+    Members      *repository.IdentityMemberRepository
 }
 
-func NewKeyHandler(pub *repository.PublicKeyRepository, priv *repository.PrivateKeyRepository) *KeyHandler {
-    return &KeyHandler{pub, priv}
+func NewKeyHandler(
+    identities *repository.IdentityRepository,
+    pub *repository.IdentityPublicKeyRepository,
+    priv *repository.IdentityPrivateKeyRepository,
+    members *repository.IdentityMemberRepository,
+) *KeyHandler {
+    return &KeyHandler{identities, pub, priv, members}
 }
 
 type UploadPublicKeyRequest struct {
     Email      string `json:"email"`
     ArmoredKey string `json:"armored_key"`
+    WKDHash    string `json:"wkd_hash"`
 }
 
 func (h *KeyHandler) UploadPublicKey(c *gin.Context) {
@@ -26,9 +34,30 @@ func (h *KeyHandler) UploadPublicKey(c *gin.Context) {
         return
     }
 
-    userID := c.GetString("user_id") // injecté par middleware auth
+    userID := c.GetString("user_id")
 
-    key, err := h.PublicKeys.InsertPublicKey(c, userID, req.Email, req.ArmoredKey, true)
+    // 1. Trouver ou créer l’identité
+    identity, err := h.Identities.GetByEmail(c, req.Email)
+    if err != nil {
+        // identité n’existe pas → on la crée
+        identity, err = h.Identities.CreateIdentity(c, req.Email, "primary")
+        if err != nil {
+            c.JSON(500, gin.H{"error": "failed to create identity"})
+            return
+        }
+    }
+
+    // 2. Ajouter le user comme membre
+    _ = h.Members.AddMember(c, identity.ID, userID)
+
+    // 3. Insérer la clé publique
+    key, err := h.PublicKeys.InsertPublicKey(
+        c,
+        identity.ID,
+        req.ArmoredKey,
+        req.WKDHash,
+        true,
+    )
     if err != nil {
         c.JSON(500, gin.H{"error": "failed to store public key"})
         return
@@ -39,7 +68,8 @@ func (h *KeyHandler) UploadPublicKey(c *gin.Context) {
 
 
 type UploadPrivateKeyRequest struct {
-    ArmoredEncryptedKey string `json:"armored_encrypted_key"`
+    IdentityEmail       string `json:"identity_email"`
+    EncryptedPrivateKey string `json:"encrypted_private_key"`
 }
 
 func (h *KeyHandler) UploadPrivateKey(c *gin.Context) {
@@ -51,7 +81,20 @@ func (h *KeyHandler) UploadPrivateKey(c *gin.Context) {
 
     userID := c.GetString("user_id")
 
-    key, err := h.PrivateKeys.InsertPrivateKey(c, userID, req.ArmoredEncryptedKey)
+    // 1. Trouver l’identité
+    identity, err := h.Identities.GetByEmail(c, req.IdentityEmail)
+    if err != nil {
+        c.JSON(404, gin.H{"error": "identity not found"})
+        return
+    }
+
+    // 2. Stocker la clé privée chiffrée
+    key, err := h.PrivateKeys.InsertPrivateKey(
+        c,
+        identity.ID,
+        userID,
+        req.EncryptedPrivateKey,
+    )
     if err != nil {
         c.JSON(500, gin.H{"error": "failed to store private key"})
         return
@@ -60,17 +103,26 @@ func (h *KeyHandler) UploadPrivateKey(c *gin.Context) {
     c.JSON(200, gin.H{"id": key.ID})
 }
 
+
 func (h *KeyHandler) GetPublicKey(c *gin.Context) {
     email := c.Param("email")
 
-    key, err := h.PublicKeys.GetPrimaryPublicKeyByEmail(c, email)
+    identity, err := h.Identities.GetByEmail(c, email)
     if err != nil {
-        c.JSON(404, gin.H{"error": "not found"})
+        c.JSON(404, gin.H{"error": "identity not found"})
         return
     }
 
+    keys, err := h.PublicKeys.GetActiveKeysByIdentity(c, identity.ID)
+    if err != nil || len(keys) == 0 {
+        c.JSON(404, gin.H{"error": "no active public key"})
+        return
+    }
+
+    key := keys[0] // la plus récente
+
     c.JSON(200, gin.H{
-        "email":       key.Email,
+        "email":       email,
         "armored_key": key.ArmoredKey,
     })
 }
@@ -78,13 +130,25 @@ func (h *KeyHandler) GetPublicKey(c *gin.Context) {
 func (h *KeyHandler) GetPrivateKey(c *gin.Context) {
     userID := c.GetString("user_id")
 
-    key, err := h.PrivateKeys.GetLatestPrivateKey(c, userID)
+    // 1. Trouver les identités du user
+    identities, err := h.Members.ListIdentitiesForUser(c, userID)
+    if err != nil || len(identities) == 0 {
+        c.JSON(404, gin.H{"error": "no identity for user"})
+        return
+    }
+
+    identity := identities[0]
+
+    // 2. Récupérer la clé privée chiffrée
+    key, err := h.PrivateKeys.GetForUserIdentity(c, identity.ID, userID)
     if err != nil {
-        c.JSON(404, gin.H{"error": "not found"})
+        c.JSON(404, gin.H{"error": "private key not found"})
         return
     }
 
     c.JSON(200, gin.H{
-        "armored_encrypted_key": key.ArmoredEncryptedKey,
+        "identity_email":       identity.Email,
+        "encrypted_private_key": key.EncryptedPrivateKey,
     })
 }
+

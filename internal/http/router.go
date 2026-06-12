@@ -3,8 +3,8 @@ package http
 import (
     "github.com/gin-gonic/gin"
     "log/slog"
-	"aurion/core/internal/db/repository"
-	"aurion/core/internal/http/handlers"
+    "aurion/core/internal/db/repository"
+    "aurion/core/internal/http/handlers"
     "aurion/core/internal/http/middleware"
     "aurion/core/internal/mail"
 )
@@ -12,8 +12,10 @@ import (
 func NewRouter(
     logger *slog.Logger,
     users *repository.UserRepository,
-    publicKeys *repository.PublicKeyRepository,
-    privateKeys *repository.PrivateKeyRepository,
+    identities *repository.IdentityRepository,
+    publicKeys *repository.IdentityPublicKeyRepository,
+    privateKeys *repository.IdentityPrivateKeyRepository,
+    members *repository.IdentityMemberRepository,
     sessions *repository.SessionRepository,
     mailService *mail.MailService,
 ) *gin.Engine {
@@ -21,10 +23,13 @@ func NewRouter(
     r := gin.New()
     r.Use(gin.Recovery())
 
+    //
+    // AUTH
+    //
     auth := handlers.NewAuthHandler(users, sessions)
 
     r.GET("/health", func(c *gin.Context) {
-		logger.Info("healthcheck")
+        logger.Info("healthcheck")
         c.JSON(200, gin.H{"status": "ok"})
     })
 
@@ -32,24 +37,40 @@ func NewRouter(
     r.POST("/auth/login", auth.Login)
     r.GET("/auth/session", auth.Session)
 
-    keyHandler := handlers.NewKeyHandler(publicKeys, privateKeys)
+    //
+    // KEYS
+    //
+    keyHandler := handlers.NewKeyHandler(
+        identities,
+        publicKeys,
+        privateKeys,
+        members,
+    )
+
+    // Public no auth
     r.GET("/keys/public/:email", keyHandler.GetPublicKey)
 
-    // wkd
+    // WKD no auth of course
     wkdHandler := handlers.NewWKDHandler(publicKeys)
-
     r.GET("/.well-known/openpgpkey/policy", wkdHandler.GetPolicy)
     r.GET("/.well-known/openpgpkey/hu/:hash", wkdHandler.GetWKDKey)
 
-    // auth routes
+    //
+    // AUTHENTICATED ROUTES
+    //
     authGroup := r.Group("/")
-    authGroup.Use(middleware.AuthMiddleware(sessions)) // middleware Bearer
+    authGroup.Use(middleware.AuthMiddleware(sessions))
+
+    // Upload keys
     authGroup.POST("/keys/public", keyHandler.UploadPublicKey)
     authGroup.POST("/keys/private", keyHandler.UploadPrivateKey)
     authGroup.GET("/keys/private/me", keyHandler.GetPrivateKey)
 
-    // Mail routes
+    //
+    // MAIL
+    //
     mailHandler := handlers.NewMailHandler(mailService)
+
     authGroup.POST("/mail/send", mailHandler.SendMail)
     authGroup.GET("/mail/messages", mailHandler.ListMessages)
     authGroup.GET("/mail/message/:id", mailHandler.GetMessage)
@@ -57,19 +78,20 @@ func NewRouter(
     authGroup.POST("/mail/message/:id/seen", mailHandler.SetSeen)
     authGroup.POST("/mail/message/:id/tags", mailHandler.UpdateTags)
 
-    // Mailboxes
+    //
+    // MAILBOXES
+    //
     authGroup.GET("/mail/mailboxes", mailHandler.ListMailboxes)
     authGroup.POST("/mail/mailbox/create", mailHandler.CreateMailbox)
     authGroup.POST("/mail/mailbox/rename", mailHandler.RenameMailbox)
     authGroup.POST("/mail/mailbox/delete", mailHandler.DeleteMailbox)
 
-    // Drafts
+    //
+    // DRAFTS
+    //
     authGroup.POST("/mail/draft", mailHandler.CreateDraft)
     authGroup.PUT("/mail/draft/:id", mailHandler.UpdateDraft)
     authGroup.DELETE("/mail/draft/:id", mailHandler.DeleteDraft)
 
-
     return r
 }
-
-

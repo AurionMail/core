@@ -5,28 +5,52 @@
 package generated
 
 import (
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-type PrivateKey struct {
-	ID                  uuid.UUID    `json:"id"`
-	UserID              uuid.UUID    `json:"user_id"`
-	ArmoredEncryptedKey string       `json:"armored_encrypted_key"`
-	CreatedAt           time.Time    `json:"created_at"`
-	LastUsedAt          sql.NullTime `json:"last_used_at"`
+type Identity struct {
+	ID        uuid.UUID `json:"id"`
+	Email     string    `json:"email"`
+	Type      string    `json:"type"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
-type PublicKey struct {
-	ID         uuid.UUID `json:"id"`
+type IdentityMember struct {
+	IdentityID uuid.UUID `json:"identity_id"`
 	UserID     uuid.UUID `json:"user_id"`
-	Email      string    `json:"email"`
+}
+
+type IdentityPrivateKey struct {
+	ID                  uuid.UUID `json:"id"`
+	IdentityID          uuid.UUID `json:"identity_id"`
+	UserID              uuid.UUID `json:"user_id"`
+	EncryptedPrivateKey string    `json:"encrypted_private_key"`
+	CreatedAt           time.Time `json:"created_at"`
+}
+
+type IdentityPublicKey struct {
+	ID         uuid.UUID `json:"id"`
+	IdentityID uuid.UUID `json:"identity_id"`
 	WkdHash    string    `json:"wkd_hash"`
 	ArmoredKey string    `json:"armored_key"`
+	IsActive   bool      `json:"is_active"`
 	CreatedAt  time.Time `json:"created_at"`
-	IsPrimary  bool      `json:"is_primary"`
+}
+
+type RoutingAlias struct {
+	ID               uuid.UUID `json:"id"`
+	SourceEmail      string    `json:"source_email"`
+	TargetIdentityID uuid.UUID `json:"target_identity_id"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+type RoutingCatchall struct {
+	ID               uuid.UUID `json:"id"`
+	Domain           string    `json:"domain"`
+	TargetIdentityID uuid.UUID `json:"target_identity_id"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 type Session struct {
