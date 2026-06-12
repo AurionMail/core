@@ -55,3 +55,7 @@ func (r *IdentityMemberRepository) ListIdentitiesForUser(ctx context.Context, us
 
     return r.q.ListIdentitiesForUser(ctx, uid)
 }
+
+func (r *IdentityMemberRepository) ListMembersForIdentity(ctx context.Context, identityID uuid.UUID) ([]generated.User, error) {
+    return r.q.ListMembersForIdentity(ctx, identityID)
+}

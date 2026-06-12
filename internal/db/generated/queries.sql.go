@@ -51,29 +51,6 @@ func (q *Queries) CreateIdentity(ctx context.Context, arg CreateIdentityParams) 
 	return i, err
 }
 
-const createRoutingAlias = `-- name: CreateRoutingAlias :one
-INSERT INTO routing_aliases (source_email, target_identity_id)
-VALUES ($1, $2)
-RETURNING id, source_email, target_identity_id, created_at
-`
-
-type CreateRoutingAliasParams struct {
-	SourceEmail      string    `json:"source_email"`
-	TargetIdentityID uuid.UUID `json:"target_identity_id"`
-}
-
-func (q *Queries) CreateRoutingAlias(ctx context.Context, arg CreateRoutingAliasParams) (RoutingAlias, error) {
-	row := q.db.QueryRowContext(ctx, createRoutingAlias, arg.SourceEmail, arg.TargetIdentityID)
-	var i RoutingAlias
-	err := row.Scan(
-		&i.ID,
-		&i.SourceEmail,
-		&i.TargetIdentityID,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const createRoutingCatchall = `-- name: CreateRoutingCatchall :one
 INSERT INTO routing_catchall (domain, target_identity_id)
 VALUES ($1, $2)
@@ -173,16 +150,6 @@ func (q *Queries) DeleteIdentityPrivateKey(ctx context.Context, arg DeleteIdenti
 	return err
 }
 
-const deleteRoutingAlias = `-- name: DeleteRoutingAlias :exec
-DELETE FROM routing_aliases
-WHERE source_email = $1
-`
-
-func (q *Queries) DeleteRoutingAlias(ctx context.Context, sourceEmail string) error {
-	_, err := q.db.ExecContext(ctx, deleteRoutingAlias, sourceEmail)
-	return err
-}
-
 const deleteRoutingCatchall = `-- name: DeleteRoutingCatchall :exec
 DELETE FROM routing_catchall
 WHERE domain = $1
@@ -228,6 +195,25 @@ func (q *Queries) GetActiveIdentityPublicKeys(ctx context.Context, identityID uu
 		return nil, err
 	}
 	return items, nil
+}
+
+const getCatchallIdentity = `-- name: GetCatchallIdentity :one
+SELECT i.id, i.email, i.type, i.created_at
+FROM routing_catchall c
+JOIN identities i ON i.id = c.identity_id
+WHERE c.domain = $1
+`
+
+func (q *Queries) GetCatchallIdentity(ctx context.Context, domain string) (Identity, error) {
+	row := q.db.QueryRowContext(ctx, getCatchallIdentity, domain)
+	var i Identity
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Type,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const getIdentityByEmail = `-- name: GetIdentityByEmail :one
@@ -308,25 +294,6 @@ func (q *Queries) GetIdentityPublicKeyByWKDHash(ctx context.Context, wkdHash str
 		&i.WkdHash,
 		&i.ArmoredKey,
 		&i.IsActive,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const getRoutingAlias = `-- name: GetRoutingAlias :one
-SELECT id, source_email, target_identity_id, created_at
-FROM routing_aliases
-WHERE source_email = $1
-LIMIT 1
-`
-
-func (q *Queries) GetRoutingAlias(ctx context.Context, sourceEmail string) (RoutingAlias, error) {
-	row := q.db.QueryRowContext(ctx, getRoutingAlias, sourceEmail)
-	var i RoutingAlias
-	err := row.Scan(
-		&i.ID,
-		&i.SourceEmail,
-		&i.TargetIdentityID,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -489,6 +456,43 @@ WHERE identity_members.identity_id = $1
 
 func (q *Queries) ListIdentityMembers(ctx context.Context, identityID uuid.UUID) ([]User, error) {
 	rows, err := q.db.QueryContext(ctx, listIdentityMembers, identityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []User
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.PasswordHash,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.IsActive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMembersForIdentity = `-- name: ListMembersForIdentity :many
+SELECT u.id, u.email, u.password_hash, u.created_at, u.updated_at, u.is_active
+FROM identity_members m
+JOIN users u ON u.id = m.user_id
+WHERE m.identity_id = $1
+`
+
+func (q *Queries) ListMembersForIdentity(ctx context.Context, identityID uuid.UUID) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listMembersForIdentity, identityID)
 	if err != nil {
 		return nil, err
 	}

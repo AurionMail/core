@@ -85,20 +85,7 @@ LIMIT 1;
 DELETE FROM identity_private_keys
 WHERE identity_id = $1 AND user_id = $2;
 
--- name: CreateRoutingAlias :one
-INSERT INTO routing_aliases (source_email, target_identity_id)
-VALUES ($1, $2)
-RETURNING *;
 
--- name: GetRoutingAlias :one
-SELECT *
-FROM routing_aliases
-WHERE source_email = $1
-LIMIT 1;
-
--- name: DeleteRoutingAlias :exec
-DELETE FROM routing_aliases
-WHERE source_email = $1;
 
 -- name: CreateRoutingCatchall :one
 INSERT INTO routing_catchall (domain, target_identity_id)
@@ -126,3 +113,15 @@ SELECT i.*
 FROM identity_members m
 JOIN identities i ON i.id = m.identity_id
 WHERE m.user_id = $1;
+
+-- name: ListMembersForIdentity :many
+SELECT u.*
+FROM identity_members m
+JOIN users u ON u.id = m.user_id
+WHERE m.identity_id = $1;
+
+-- name: GetCatchallIdentity :one
+SELECT i.*
+FROM routing_catchall c
+JOIN identities i ON i.id = c.identity_id
+WHERE c.domain = $1;

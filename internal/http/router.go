@@ -17,6 +17,7 @@ func NewRouter(
     privateKeys *repository.IdentityPrivateKeyRepository,
     members *repository.IdentityMemberRepository,
     sessions *repository.SessionRepository,
+    catchall *repository.RoutingCatchallRepository,
     mailService *mail.MailService,
 ) *gin.Engine {
 
@@ -93,5 +94,16 @@ func NewRouter(
     authGroup.PUT("/mail/draft/:id", mailHandler.UpdateDraft)
     authGroup.DELETE("/mail/draft/:id", mailHandler.DeleteDraft)
 
+    // INTERNAL
+    routingHandler := handlers.NewRoutingHandler(
+        identities,
+        members,
+        publicKeys,
+        catchall,
+    )
+
+    internal := r.Group("/internal")
+    internal.POST("/routing/resolve", routingHandler.Resolve)
+    
     return r
 }

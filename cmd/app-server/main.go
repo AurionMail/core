@@ -49,6 +49,7 @@ func main() {
     identityPublicKeyRepo := repository.NewIdentityPublicKeyRepository(queries)
     identityPrivateKeyRepo := repository.NewIdentityPrivateKeyRepository(queries)
     identityMemberRepo := repository.NewIdentityMemberRepository(queries)
+    catchallRepo := repository.NewRoutingCatchallRepository(queries)
 
     sessionRepo := repository.NewSessionRepository(queries)
 
@@ -90,6 +91,7 @@ func main() {
         identityPrivateKeyRepo,
         identityMemberRepo,
         sessionRepo,
+        catchallRepo,
         mailService,
     )
 

@@ -39,13 +39,6 @@ type IdentityPublicKey struct {
 	CreatedAt  time.Time `json:"created_at"`
 }
 
-type RoutingAlias struct {
-	ID               uuid.UUID `json:"id"`
-	SourceEmail      string    `json:"source_email"`
-	TargetIdentityID uuid.UUID `json:"target_identity_id"`
-	CreatedAt        time.Time `json:"created_at"`
-}
-
 type RoutingCatchall struct {
 	ID               uuid.UUID `json:"id"`
 	Domain           string    `json:"domain"`
