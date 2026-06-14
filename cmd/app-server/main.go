@@ -57,6 +57,7 @@ func main() {
     //  MAIL BACKEND
     // -------------------------------
     backendType := os.Getenv("MAIL_BACKEND")
+    serverSecret := []byte(os.Getenv("AUTH_FAKE_SALT_SECRET"))
 
     var mailBackend mail.MailBackend
 
@@ -93,6 +94,7 @@ func main() {
         sessionRepo,
         catchallRepo,
         mailService,
+        serverSecret,
     )
 
     logger.Info("Starting Boson app-server", "port", cfg.AppPort)

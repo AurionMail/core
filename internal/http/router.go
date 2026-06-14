@@ -19,6 +19,7 @@ func NewRouter(
     sessions *repository.SessionRepository,
     catchall *repository.RoutingCatchallRepository,
     mailService *mail.MailService,
+    serverSecret []byte,
 ) *gin.Engine {
 
     r := gin.New()
@@ -27,7 +28,7 @@ func NewRouter(
     //
     // AUTH
     //
-    auth := handlers.NewAuthHandler(users, sessions)
+    auth := handlers.NewAuthHandler(users, sessions, serverSecret)
 
     r.GET("/health", func(c *gin.Context) {
         logger.Info("healthcheck")
@@ -36,6 +37,7 @@ func NewRouter(
 
     r.POST("/auth/signup", auth.Signup)
     r.POST("/auth/login", auth.Login)
+    r.POST("/auth/salt", auth.GetSalt)
     r.GET("/auth/session", auth.Session)
 
     //

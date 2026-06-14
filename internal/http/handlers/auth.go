@@ -10,20 +10,26 @@ import (
     "aurion/core/internal/security"
 
 	"strings"
+    "encoding/base64"
+    "crypto/hmac"
+    "crypto/sha256"
 )
 
 type AuthHandler struct {
     Users    *repository.UserRepository
     Sessions *repository.SessionRepository
+    secret   []byte
 }
 
-func NewAuthHandler(users *repository.UserRepository, sessions *repository.SessionRepository) *AuthHandler {
-    return &AuthHandler{users, sessions}
+func NewAuthHandler(users *repository.UserRepository, sessions *repository.SessionRepository, secret []byte) *AuthHandler {
+    return &AuthHandler{users, sessions, secret}
 }
 
 type SignupRequest struct {
     Email    string `json:"email"`
     Password string `json:"password"`
+    SaltClient string `json:"salt_client"`
+    SaltServer string `json:"salt_server"`
 }
 
 func (h *AuthHandler) Signup(c *gin.Context) {
@@ -36,7 +42,7 @@ func (h *AuthHandler) Signup(c *gin.Context) {
     email := strings.ToLower(req.Email)
     hash := security.HashPassword(req.Password)
 
-    user, err := h.Users.CreateUser(c, email, hash)
+    user, err := h.Users.CreateUser(c, email, hash, req.SaltServer, req.SaltClient)
     if err != nil {
         c.JSON(400, gin.H{"error": err})
         return
@@ -115,4 +121,57 @@ func (h *AuthHandler) Session(c *gin.Context) {
         "email":   "TODO: fetch email",
     })
 }
+
+type SaltRequest struct {
+    Email string `json:"email"`
+}
+
+func (h *AuthHandler) GetSalt(c *gin.Context) {
+    var req SaltRequest
+    if err := c.BindJSON(&req); err != nil {
+        c.JSON(400, gin.H{"error": "invalid request"})
+        return
+    }
+
+    email := strings.ToLower(strings.TrimSpace(req.Email))
+    start := time.Now()
+
+    user, err := h.Users.GetUserByEmail(c, email)
+
+    // Fake deterministic salts
+    fakeServer := fakeSalt(email+"server", h.secret)
+    fakeClient := fakeSalt(email+"client", h.secret)
+
+    saltServer := fakeServer
+    saltClient := fakeClient
+    var userID any = nil
+
+    if err == nil {
+        saltServer = user.SaltServer
+        saltClient = user.SaltClient
+        userID = user.ID
+    }
+
+    // Constant-time response (50ms)
+    minDuration := 50 * time.Millisecond
+    elapsed := time.Since(start)
+    if elapsed < minDuration {
+        time.Sleep(minDuration - elapsed)
+    }
+
+    c.JSON(200, gin.H{
+        "id":          userID,
+        "salt_server": saltServer,
+        "salt_client": saltClient,
+    })
+}
+
+
+func fakeSalt(email string, secret []byte) string {
+    mac := hmac.New(sha256.New, secret)
+    mac.Write([]byte(email))
+    sum := mac.Sum(nil)
+    return base64.RawStdEncoding.EncodeToString(sum[:16])
+}
+
 
