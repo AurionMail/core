@@ -12,7 +12,6 @@ import (
     "aurion/core/internal/db/generated"
     "aurion/core/internal/db/repository"
     "aurion/core/internal/mail"
-    "aurion/core/internal/mail/backends/jmap"
 )
 
 func main() {
@@ -56,31 +55,23 @@ func main() {
     // -------------------------------
     //  MAIL BACKEND
     // -------------------------------
-    backendType := os.Getenv("MAIL_BACKEND")
+    // backendType := os.Getenv("MAIL_BACKEND")
     serverSecret := []byte(os.Getenv("AUTH_FAKE_SALT_SECRET"))
+
+   backendType := os.Getenv("MAIL_BACKEND")
 
     var mailBackend mail.MailBackend
 
     switch backendType {
     case "jmap":
-        mailBackend = jmap.NewJMAPBackend(
-            os.Getenv("JMAP_URL"),
-            os.Getenv("JMAP_USERNAME"),
-            os.Getenv("JMAP_PASSWORD"),
-        )
+        mailBackend = mail.NewJMAPBackend(os.Getenv("JMAP_URL"))
+    case "imap":
+        mailBackend = mail.NewIMAPBackend(os.Getenv("IMAP_SERVER"))
     default:
-        logger.Error("Unknown MAIL_BACKEND", "backend", backendType)
-        return
+        logger.Warn("No MAIL_BACKEND configured, external credential check will be skipped")
     }
 
-    // MailService
-    mailService := mail.NewMailService(
-        mailBackend,
-        identityRepo,
-        identityPublicKeyRepo,
-        identityPrivateKeyRepo,
-    )
-
+    
     // -------------------------------
     //  ROUTER
     // -------------------------------
@@ -93,7 +84,7 @@ func main() {
         identityMemberRepo,
         sessionRepo,
         catchallRepo,
-        mailService,
+        mailBackend,
         serverSecret,
     )
 

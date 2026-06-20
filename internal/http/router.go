@@ -18,7 +18,7 @@ func NewRouter(
     members *repository.IdentityMemberRepository,
     sessions *repository.SessionRepository,
     catchall *repository.RoutingCatchallRepository,
-    mailService *mail.MailService,
+    mailBackend mail.MailBackend,
     serverSecret []byte,
 ) *gin.Engine {
 
@@ -28,7 +28,7 @@ func NewRouter(
     //
     // AUTH
     //
-    auth := handlers.NewAuthHandler(users, sessions, serverSecret)
+    auth := handlers.NewAuthHandler(users, sessions, mailBackend, serverSecret)
 
     r.GET("/health", func(c *gin.Context) {
         logger.Info("healthcheck")
@@ -39,6 +39,7 @@ func NewRouter(
     r.POST("/auth/login", auth.Login)
     r.POST("/auth/salt", auth.GetSalt)
     r.GET("/auth/session", auth.Session)
+    r.POST("/auth/verify", auth.VerifyCredentials)
 
     //
     // KEYS
@@ -69,32 +70,6 @@ func NewRouter(
     authGroup.POST("/keys/private", keyHandler.UploadPrivateKey)
     authGroup.GET("/keys/private/me", keyHandler.GetPrivateKey)
 
-    //
-    // MAIL
-    //
-    mailHandler := handlers.NewMailHandler(mailService)
-
-    authGroup.POST("/mail/send", mailHandler.SendMail)
-    authGroup.GET("/mail/messages", mailHandler.ListMessages)
-    authGroup.GET("/mail/message/:id", mailHandler.GetMessage)
-    authGroup.DELETE("/mail/message/:id", mailHandler.DeleteMessage)
-    authGroup.POST("/mail/message/:id/seen", mailHandler.SetSeen)
-    authGroup.POST("/mail/message/:id/tags", mailHandler.UpdateTags)
-
-    //
-    // MAILBOXES
-    //
-    authGroup.GET("/mail/mailboxes", mailHandler.ListMailboxes)
-    authGroup.POST("/mail/mailbox/create", mailHandler.CreateMailbox)
-    authGroup.POST("/mail/mailbox/rename", mailHandler.RenameMailbox)
-    authGroup.POST("/mail/mailbox/delete", mailHandler.DeleteMailbox)
-
-    //
-    // DRAFTS
-    //
-    authGroup.POST("/mail/draft", mailHandler.CreateDraft)
-    authGroup.PUT("/mail/draft/:id", mailHandler.UpdateDraft)
-    authGroup.DELETE("/mail/draft/:id", mailHandler.DeleteDraft)
 
     // INTERNAL
     routingHandler := handlers.NewRoutingHandler(

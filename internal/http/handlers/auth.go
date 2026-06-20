@@ -8,8 +8,9 @@ import (
 
     "aurion/core/internal/db/repository"
     "aurion/core/internal/security"
+    "aurion/core/internal/mail"
 
-	"strings"
+    "strings"
     "encoding/base64"
     "crypto/hmac"
     "crypto/sha256"
@@ -18,18 +19,20 @@ import (
 type AuthHandler struct {
     Users    *repository.UserRepository
     Sessions *repository.SessionRepository
+    MailBackend mail.MailBackend
     secret   []byte
 }
 
-func NewAuthHandler(users *repository.UserRepository, sessions *repository.SessionRepository, secret []byte) *AuthHandler {
-    return &AuthHandler{users, sessions, secret}
+func NewAuthHandler(users *repository.UserRepository, sessions *repository.SessionRepository, mailBackend mail.MailBackend, secret []byte) *AuthHandler {
+    return &AuthHandler{users, sessions, mailBackend, secret}
 }
 
 type SignupRequest struct {
-    Email    string `json:"email"`
-    Password string `json:"password"`
-    SaltClient string `json:"salt_client"`
-    SaltServer string `json:"salt_server"`
+    Email          string `json:"email"`
+    Password       string `json:"password"`
+    ServerPassword string `json:"server_password"`
+    SaltClient     string `json:"salt_client"`
+    SaltServer     string `json:"salt_server"`
 }
 
 func (h *AuthHandler) Signup(c *gin.Context) {
@@ -40,6 +43,15 @@ func (h *AuthHandler) Signup(c *gin.Context) {
     }
 
     email := strings.ToLower(req.Email)
+    
+    if h.MailBackend != nil {
+        valid, err := h.MailBackend.VerifyCredentials(c.Request.Context(), email, req.ServerPassword)
+        if err != nil || !valid {
+            c.JSON(401, gin.H{"error": "external mail server authentication failed"})
+            return
+        }
+    }
+
     hash := security.HashPassword(req.Password)
 
     user, err := h.Users.CreateUser(c, email, hash, req.SaltServer, req.SaltClient)
@@ -166,6 +178,38 @@ func (h *AuthHandler) GetSalt(c *gin.Context) {
     })
 }
 
+type VerifyCredentialsRequest struct {
+    Email          string `json:"email"`
+    ServerPassword string `json:"server_password"`
+}
+
+// VerifyCredentials permet à l'UI de tester si les identifiants IMAP/JMAP sont bons en amont.
+func (h *AuthHandler) VerifyCredentials(c *gin.Context) {
+    var req VerifyCredentialsRequest
+    if err := c.BindJSON(&req); err != nil {
+        c.JSON(400, gin.H{"error": "invalid request"})
+        return
+    }
+
+    if h.MailBackend == nil {
+        c.JSON(501, gin.H{"error": "mail backend integration not configured"})
+        return
+    }
+
+    email := strings.ToLower(strings.TrimSpace(req.Email))
+    valid, err := h.MailBackend.VerifyCredentials(c.Request.Context(), email, req.ServerPassword)
+    if err != nil {
+        c.JSON(500, gin.H{"error": "failed to contact external mail server"})
+        return
+    }
+
+    if !valid {
+        c.JSON(401, gin.H{"error": "external mail server authentication failed"})
+        return
+    }
+
+    c.JSON(200, gin.H{"status": "valid"})
+}
 
 func fakeSalt(email string, secret []byte) string {
     mac := hmac.New(sha256.New, secret)
@@ -173,5 +217,3 @@ func fakeSalt(email string, secret []byte) string {
     sum := mac.Sum(nil)
     return base64.RawStdEncoding.EncodeToString(sum[:16])
 }
-
-
