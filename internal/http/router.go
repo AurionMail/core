@@ -60,6 +60,16 @@ func NewRouter(
     r.GET("/.well-known/openpgpkey/hu/:hash", wkdHandler.GetWKDKey)
 
     //
+    // SYNC HANDLER (Nouveau)
+    //
+    syncHandler := handlers.NewSyncHandler(
+        identities,
+        publicKeys,
+        privateKeys,
+        members,
+    )
+
+    //
     // AUTHENTICATED ROUTES
     //
     authGroup := r.Group("/")
@@ -69,6 +79,10 @@ func NewRouter(
     authGroup.POST("/keys/public", keyHandler.UploadPublicKey)
     authGroup.POST("/keys/private", keyHandler.UploadPrivateKey)
     authGroup.GET("/keys/private/me", keyHandler.GetPrivateKey)
+
+    // Routings & Key share synchronization (Ajouté sous protection auth)
+    authGroup.GET("/sync/routing", syncHandler.SyncRouting)
+    authGroup.POST("/keys/sync", syncHandler.UploadSyncKeys)
 
 
     // INTERNAL

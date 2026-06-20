@@ -206,6 +206,25 @@ func (q *Queries) GetActiveIdentityPublicKeys(ctx context.Context, identityID uu
 	return items, nil
 }
 
+const getActiveKeyByIdentityID = `-- name: GetActiveKeyByIdentityID :one
+SELECT id, identity_id, wkd_hash, armored_key, is_active, created_at FROM identity_public_keys 
+WHERE identity_id = $1 AND is_active = TRUE LIMIT 1
+`
+
+func (q *Queries) GetActiveKeyByIdentityID(ctx context.Context, identityID uuid.UUID) (IdentityPublicKey, error) {
+	row := q.db.QueryRowContext(ctx, getActiveKeyByIdentityID, identityID)
+	var i IdentityPublicKey
+	err := row.Scan(
+		&i.ID,
+		&i.IdentityID,
+		&i.WkdHash,
+		&i.ArmoredKey,
+		&i.IsActive,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getCatchallIdentity = `-- name: GetCatchallIdentity :one
 SELECT i.id, i.email, i.type, i.created_at
 FROM routing_catchall c
@@ -223,6 +242,40 @@ func (q *Queries) GetCatchallIdentity(ctx context.Context, domain string) (Ident
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getIdentitiesByUserID = `-- name: GetIdentitiesByUserID :many
+SELECT i.id, i.email, i.type, i.created_at FROM identities i
+JOIN identity_members im ON i.id = im.identity_id
+WHERE im.user_id = $1
+`
+
+func (q *Queries) GetIdentitiesByUserID(ctx context.Context, userID uuid.UUID) ([]Identity, error) {
+	rows, err := q.db.QueryContext(ctx, getIdentitiesByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Identity
+	for rows.Next() {
+		var i Identity
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Type,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getIdentityByEmail = `-- name: GetIdentityByEmail :one
@@ -303,6 +356,57 @@ func (q *Queries) GetIdentityPublicKeyByWKDHash(ctx context.Context, wkdHash str
 		&i.WkdHash,
 		&i.ArmoredKey,
 		&i.IsActive,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getMemberIDsByIdentityID = `-- name: GetMemberIDsByIdentityID :many
+SELECT user_id::text FROM identity_members 
+WHERE identity_id = $1
+`
+
+func (q *Queries) GetMemberIDsByIdentityID(ctx context.Context, identityID uuid.UUID) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, getMemberIDsByIdentityID, identityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPrivateKeyByIdentityAndUser = `-- name: GetPrivateKeyByIdentityAndUser :one
+SELECT id, identity_id, user_id, encrypted_private_key, created_at FROM identity_private_keys 
+WHERE identity_id = $1 AND user_id = $2
+`
+
+type GetPrivateKeyByIdentityAndUserParams struct {
+	IdentityID uuid.UUID `json:"identity_id"`
+	UserID     uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetPrivateKeyByIdentityAndUser(ctx context.Context, arg GetPrivateKeyByIdentityAndUserParams) (IdentityPrivateKey, error) {
+	row := q.db.QueryRowContext(ctx, getPrivateKeyByIdentityAndUser, arg.IdentityID, arg.UserID)
+	var i IdentityPrivateKey
+	err := row.Scan(
+		&i.ID,
+		&i.IdentityID,
+		&i.UserID,
+		&i.EncryptedPrivateKey,
 		&i.CreatedAt,
 	)
 	return i, err

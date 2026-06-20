@@ -66,7 +66,6 @@ func (h *KeyHandler) UploadPublicKey(c *gin.Context) {
     c.JSON(200, gin.H{"id": key.ID})
 }
 
-
 type UploadPrivateKeyRequest struct {
     IdentityEmail       string `json:"identity_email"`
     EncryptedPrivateKey string `json:"encrypted_private_key"`
@@ -103,7 +102,6 @@ func (h *KeyHandler) UploadPrivateKey(c *gin.Context) {
     c.JSON(200, gin.H{"id": key.ID})
 }
 
-
 func (h *KeyHandler) GetPublicKey(c *gin.Context) {
     email := c.Param("email")
 
@@ -127,28 +125,46 @@ func (h *KeyHandler) GetPublicKey(c *gin.Context) {
     })
 }
 
+type PrivateKeyResponseItem struct {
+    IdentityEmail       string `json:"identity_email"`
+    EncryptedPrivateKey string `json:"encrypted_private_key"`
+}
+
+// GetPrivateKey renvoie désormais TOUTES les clés privées chiffrées des identités de l'utilisateur.
 func (h *KeyHandler) GetPrivateKey(c *gin.Context) {
     userID := c.GetString("user_id")
 
-    // 1. Trouver les identités du user
+    // 1. Trouver TOUTES les identités auxquelles le user appartient (alias, groupes, primary, etc.)
     identities, err := h.Members.ListIdentitiesForUser(c, userID)
     if err != nil || len(identities) == 0 {
-        c.JSON(404, gin.H{"error": "no identity for user"})
+        c.JSON(404, gin.H{"error": "no identity found for this user"})
         return
     }
 
-    identity := identities[0]
+    var privateKeysList []PrivateKeyResponseItem
 
-    // 2. Récupérer la clé privée chiffrée
-    key, err := h.PrivateKeys.GetForUserIdentity(c, identity.ID, userID)
-    if err != nil {
-        c.JSON(404, gin.H{"error": "private key not found"})
+    // 2. Boucler sur chaque identité pour collecter sa clé privée correspondante
+    for _, identity := range identities {
+        key, err := h.PrivateKeys.GetForUserIdentity(c, identity.ID, userID)
+        if err != nil {
+            // Si une clé privée n'est pas encore générée ou disponible pour une identité spécifique,
+            // on l'ignore silencieusement pour ne pas bloquer la récupération des autres clés.
+            continue
+        }
+
+        privateKeysList = append(privateKeysList, PrivateKeyResponseItem{
+            IdentityEmail:       identity.Email,
+            EncryptedPrivateKey: key.EncryptedPrivateKey,
+        })
+    }
+
+    // Si aucune clé privée n'a pu être trouvée dans toute la liste
+    if len(privateKeysList) == 0 {
+        c.JSON(404, gin.H{"error": "no private keys found"})
         return
     }
 
     c.JSON(200, gin.H{
-        "identity_email":       identity.Email,
-        "encrypted_private_key": key.EncryptedPrivateKey,
+        "keys": privateKeysList,
     })
 }
-

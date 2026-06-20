@@ -125,3 +125,20 @@ SELECT i.*
 FROM routing_catchall c
 JOIN identities i ON i.id = c.identity_id
 WHERE c.domain = $1;
+
+-- name: GetIdentitiesByUserID :many
+SELECT i.* FROM identities i
+JOIN identity_members im ON i.id = im.identity_id
+WHERE im.user_id = $1;
+
+-- name: GetMemberIDsByIdentityID :many
+SELECT user_id::text FROM identity_members 
+WHERE identity_id = $1;
+
+-- name: GetActiveKeyByIdentityID :one
+SELECT * FROM identity_public_keys 
+WHERE identity_id = $1 AND is_active = TRUE LIMIT 1;
+
+-- name: GetPrivateKeyByIdentityAndUser :one
+SELECT * FROM identity_private_keys 
+WHERE identity_id = $1 AND user_id = $2;
