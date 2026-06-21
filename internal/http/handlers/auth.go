@@ -217,3 +217,33 @@ func fakeSalt(email string, secret []byte) string {
     sum := mac.Sum(nil)
     return base64.RawStdEncoding.EncodeToString(sum[:16])
 }
+
+// GetServerLogin extrait le token, valide la session et retourne le mot de passe serveur chiffré de l'utilisateur.
+func (h *AuthHandler) GetServerLogin(c *gin.Context) {
+    // 1. Extraction et validation du token de session
+    token := extractBearer(c)
+    if token == "" {
+        c.JSON(401, gin.H{"error": "missing token"})
+        return
+    }
+
+    session, err := h.Sessions.GetSessionByToken(c, token)
+    if err != nil || session.ExpiresAt.Before(time.Now()) {
+        c.JSON(401, gin.H{"error": "invalid or expired session"})
+        return
+    }
+
+    // 2. Récupération de l'utilisateur associé à la session
+    // Note : Selon l'implémentation de ton Repository, GetUserById peut prendre un string ou un uuid.UUID.
+    user, err := h.Users.GetUserById(c, session.UserID)
+    if err != nil {
+        c.JSON(404, gin.H{"error": "user not found"})
+        return
+    }
+
+    // 3. Retour de la propriété attendue
+    // Adapte 'ServerPasswordEncrypted' selon le nom exact du champ dans ton struct User (ex: user.ServerPasswordEncrypted)
+    c.JSON(200, gin.H{
+        "server_password_encrypted": user.ServerPasswordEncrypted,
+    })
+}

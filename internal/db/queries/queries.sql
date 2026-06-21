@@ -7,6 +7,9 @@ RETURNING *;
 SELECT * FROM users
 WHERE email = $1;
 
+-- name: GetUserById :one
+SELECT * FROM users
+WHERE id = $1;
 
 -- name: CreateSession :one
 INSERT INTO sessions (user_id, token, expires_at)

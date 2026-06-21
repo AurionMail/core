@@ -83,6 +83,8 @@ func NewRouter(
     // Routings & Key share synchronization (Ajouté sous protection auth)
     authGroup.GET("/sync/routing", syncHandler.SyncRouting)
     authGroup.POST("/keys/sync", syncHandler.UploadSyncKeys)
+    
+    authGroup.POST("/server", auth.GetServerLogin)
 
 
     // INTERNAL

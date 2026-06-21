@@ -3,6 +3,7 @@ CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email TEXT NOT NULL UNIQUE,-- email used for connexion, not for send emails or receive mails.
     password_hash TEXT NOT NULL,
+    server_password_encrypted TEXT,
     salt_server TEXT NOT NULL,
     salt_client TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

@@ -5,6 +5,7 @@
 package generated
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,12 +56,13 @@ type Session struct {
 }
 
 type User struct {
-	ID           uuid.UUID `json:"id"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"password_hash"`
-	SaltServer   string    `json:"salt_server"`
-	SaltClient   string    `json:"salt_client"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	IsActive     bool      `json:"is_active"`
+	ID                      uuid.UUID      `json:"id"`
+	Email                   string         `json:"email"`
+	PasswordHash            string         `json:"password_hash"`
+	ServerPasswordEncrypted sql.NullString `json:"server_password_encrypted"`
+	SaltServer              string         `json:"salt_server"`
+	SaltClient              string         `json:"salt_client"`
+	CreatedAt               time.Time      `json:"created_at"`
+	UpdatedAt               time.Time      `json:"updated_at"`
+	IsActive                bool           `json:"is_active"`
 }

@@ -102,7 +102,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password_hash, salt_server, salt_client)
 VALUES ($1, $2, $3, $4)
-RETURNING id, email, password_hash, salt_server, salt_client, created_at, updated_at, is_active
+RETURNING id, email, password_hash, server_password_encrypted, salt_server, salt_client, created_at, updated_at, is_active
 `
 
 type CreateUserParams struct {
@@ -124,6 +124,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.ID,
 		&i.Email,
 		&i.PasswordHash,
+		&i.ServerPasswordEncrypted,
 		&i.SaltServer,
 		&i.SaltClient,
 		&i.CreatedAt,
@@ -450,7 +451,7 @@ func (q *Queries) GetSessionByToken(ctx context.Context, token string) (Session,
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, salt_server, salt_client, created_at, updated_at, is_active FROM users
+SELECT id, email, password_hash, server_password_encrypted, salt_server, salt_client, created_at, updated_at, is_active FROM users
 WHERE email = $1
 `
 
@@ -461,6 +462,29 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.ID,
 		&i.Email,
 		&i.PasswordHash,
+		&i.ServerPasswordEncrypted,
+		&i.SaltServer,
+		&i.SaltClient,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsActive,
+	)
+	return i, err
+}
+
+const getUserById = `-- name: GetUserById :one
+SELECT id, email, password_hash, server_password_encrypted, salt_server, salt_client, created_at, updated_at, is_active FROM users
+WHERE id = $1
+`
+
+func (q *Queries) GetUserById(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserById, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.ServerPasswordEncrypted,
 		&i.SaltServer,
 		&i.SaltClient,
 		&i.CreatedAt,
@@ -563,7 +587,7 @@ func (q *Queries) ListIdentitiesForUser(ctx context.Context, userID uuid.UUID) (
 }
 
 const listIdentityMembers = `-- name: ListIdentityMembers :many
-SELECT users.id, users.email, users.password_hash, users.salt_server, users.salt_client, users.created_at, users.updated_at, users.is_active
+SELECT users.id, users.email, users.password_hash, users.server_password_encrypted, users.salt_server, users.salt_client, users.created_at, users.updated_at, users.is_active
 FROM identity_members
 JOIN users ON users.id = identity_members.user_id
 WHERE identity_members.identity_id = $1
@@ -582,6 +606,7 @@ func (q *Queries) ListIdentityMembers(ctx context.Context, identityID uuid.UUID)
 			&i.ID,
 			&i.Email,
 			&i.PasswordHash,
+			&i.ServerPasswordEncrypted,
 			&i.SaltServer,
 			&i.SaltClient,
 			&i.CreatedAt,
@@ -602,7 +627,7 @@ func (q *Queries) ListIdentityMembers(ctx context.Context, identityID uuid.UUID)
 }
 
 const listMembersForIdentity = `-- name: ListMembersForIdentity :many
-SELECT u.id, u.email, u.password_hash, u.salt_server, u.salt_client, u.created_at, u.updated_at, u.is_active
+SELECT u.id, u.email, u.password_hash, u.server_password_encrypted, u.salt_server, u.salt_client, u.created_at, u.updated_at, u.is_active
 FROM identity_members m
 JOIN users u ON u.id = m.user_id
 WHERE m.identity_id = $1
@@ -621,6 +646,7 @@ func (q *Queries) ListMembersForIdentity(ctx context.Context, identityID uuid.UU
 			&i.ID,
 			&i.Email,
 			&i.PasswordHash,
+			&i.ServerPasswordEncrypted,
 			&i.SaltServer,
 			&i.SaltClient,
 			&i.CreatedAt,

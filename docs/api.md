@@ -364,3 +364,18 @@ Returns the list of all available encrypted private keys across all identities (
 #### Errors
 
 * `404` — No identity found or no private keys available for this user
+
+## 5.6 Get Server Login for Current User
+
+### GET `/server`
+
+Returns the encrypted server password for the currently authenticated user. This encrypted credentials blob is used by the client to authenticate against external IMAP/JMAP services.
+
+#### Response
+
+```json
+{
+  "server_password_encrypted": "base64-encrypted-blob"
+}
+
+```

@@ -3,6 +3,7 @@ package repository
 import (
     "context"
     "aurion/core/internal/db/generated"
+    "github.com/google/uuid"
 )
 
 type UserRepository struct {
@@ -25,4 +26,8 @@ func (r *UserRepository) CreateUser(ctx context.Context, email, passwordHash, sa
 
 func (r *UserRepository) GetUserByEmail(ctx context.Context, email string) (generated.User, error) {
     return r.q.GetUserByEmail(ctx, email)
+}
+
+func (r *UserRepository) GetUserById(ctx context.Context, id uuid.UUID) (generated.User, error) {
+    return r.q.GetUserById(ctx, id)
 }
