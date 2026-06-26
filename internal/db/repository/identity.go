@@ -1,61 +1,64 @@
 package repository
 
 import (
-    "context"
-    "github.com/google/uuid"
-    "aurion/core/internal/db/generated"
+	"aurion/core/internal/db/generated"
+	"context"
+
+	"github.com/google/uuid"
 )
 
-
 type IdentityRepository struct {
-    q *generated.Queries
+	q *generated.Queries
 }
 
 func NewIdentityRepository(q *generated.Queries) *IdentityRepository {
-    return &IdentityRepository{q}
+	return &IdentityRepository{q}
 }
 
 func (r *IdentityRepository) CreateIdentity(ctx context.Context, email, typ string) (generated.Identity, error) {
-    return r.q.CreateIdentity(ctx, generated.CreateIdentityParams{
-        Email: email,
-        Type:  typ, // "primary" ou "shared"
-    })
+	return r.q.CreateIdentity(ctx, generated.CreateIdentityParams{
+		Email: email,
+		Type:  typ, // "primary" ou "shared"
+	})
 }
 
 func (r *IdentityRepository) GetByEmail(ctx context.Context, email string) (generated.Identity, error) {
-    return r.q.GetIdentityByEmail(ctx, email)
+	return r.q.GetIdentityByEmail(ctx, email)
 }
 
+func (r *IdentityRepository) GetById(ctx context.Context, id uuid.UUID) (generated.Identity, error) {
+	return r.q.GetIdentityByID(ctx, id)
+}
 
 type IdentityMemberRepository struct {
-    q *generated.Queries
+	q *generated.Queries
 }
 
 func NewIdentityMemberRepository(q *generated.Queries) *IdentityMemberRepository {
-    return &IdentityMemberRepository{q}
+	return &IdentityMemberRepository{q}
 }
 
 func (r *IdentityMemberRepository) AddMember(ctx context.Context, identityID uuid.UUID, userID string) error {
-    uid, err := uuid.Parse(userID)
-    if err != nil {
-        return err
-    }
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return err
+	}
 
-    return r.q.AddIdentityMember(ctx, generated.AddIdentityMemberParams{
-        IdentityID: identityID,
-        UserID:     uid,
-    })
+	return r.q.AddIdentityMember(ctx, generated.AddIdentityMemberParams{
+		IdentityID: identityID,
+		UserID:     uid,
+	})
 }
 
 func (r *IdentityMemberRepository) ListIdentitiesForUser(ctx context.Context, userID string) ([]generated.Identity, error) {
-    uid, err := uuid.Parse(userID)
-    if err != nil {
-        return nil, err
-    }
+	uid, err := uuid.Parse(userID)
+	if err != nil {
+		return nil, err
+	}
 
-    return r.q.ListIdentitiesForUser(ctx, uid)
+	return r.q.ListIdentitiesForUser(ctx, uid)
 }
 
 func (r *IdentityMemberRepository) ListMembersForIdentity(ctx context.Context, identityID uuid.UUID) ([]generated.User, error) {
-    return r.q.ListMembersForIdentity(ctx, identityID)
+	return r.q.ListMembersForIdentity(ctx, identityID)
 }
