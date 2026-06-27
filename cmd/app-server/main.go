@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/pressly/goose/v3"
 
 	"aurion/core/internal/config"
 	"aurion/core/internal/db"
@@ -38,6 +39,24 @@ func main() {
 		return
 	}
 	logger.Info("Connected to PostgreSQL")
+
+	// -------------------------------
+	//  AUTOMATIC MIGRATIONS (Goose)
+	// -------------------------------
+	logger.Info("Checking and applying database migrations...")
+	goose.SetBaseFS(db.EmbedMigrations)
+
+	if err := goose.SetDialect("postgres"); err != nil {
+		logger.Error("failed to set goose dialect", "error", err)
+		return
+	}
+
+	// Remplace le chemin par le dossier exact où se trouvent tes fichiers .sql
+	if err := goose.Up(dbConn, "internal/db/migrations"); err != nil {
+		logger.Error("failed to run database migrations", "error", err)
+		return
+	}
+	logger.Info("Database migrations applied successfully")
 
 	// Initialize SQLC
 	queries := generated.New(dbConn)
@@ -75,27 +94,23 @@ func main() {
 	// -------------------------------
 	//  BACKGROUND SYNC WORKER
 	// -------------------------------
-	// Variables d'environnement pour l'accès Admin JMAP de Stalwart
 	stalwartJmapURL := os.Getenv("JMAP_URL")
 	stalwartAdminKey := os.Getenv("STALWART_API_KEY")
 
 	if stalwartJmapURL != "" && stalwartAdminKey != "" {
 		logger.Info("Initializing Stalwart identity synchronizer via JMAP Admin API")
 
-		// 1. Instanciation du connecteur JMAP mis à jour
 		stalwartConn := sync.NewStalwartJMAPConnector(stalwartJmapURL, stalwartAdminKey)
 
-		// 2. Création du service de synchro (avec injection du userRepo, identityRepo et identityMemberRepo)
 		syncService := sync.NewSyncService(
 			stalwartConn,
 			userRepo,
 			identityRepo,
-			identityMemberRepo, // Passé ici pour la résolution des liaisons d'identités
+			identityMemberRepo,
 			logger,
 			5*time.Minute,
 		)
 
-		// 3. Lancement de la goroutine de synchronisation
 		ctx := context.Background()
 		syncService.Start(ctx)
 

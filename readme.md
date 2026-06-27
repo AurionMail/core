@@ -35,15 +35,13 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO aurionuser;
 
 ```
 
-> **Note:** Remember to apply the database migrations. If you have `goose` installed:
+> **Note (ONLY for DEV):** Remember to apply the database migrations if you are on dev environement. If you have `goose` installed:
 > ```bash
 > goose -dir internal/db/migrations postgres "host=localhost user=aurionuser password=coolpassword dbname=auriondb sslmode=disable" up
 > 
 > ```
 > 
 > 
-
-
 
 ## **3. Environment Variables (`.env`)**
 
