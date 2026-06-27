@@ -67,7 +67,7 @@ func main() {
 	case "jmap":
 		mailBackend = mail.NewJMAPBackend(os.Getenv("JMAP_URL"))
 	case "imap":
-		mailBackend = mail.NewIMAPBackend(os.Getenv("IMAP_SERVER"))
+		mailBackend = mail.NewIMAPBackend(os.Getenv("IMAP_URL"))
 	default:
 		logger.Warn("No MAIL_BACKEND configured, external credential check will be skipped")
 	}
