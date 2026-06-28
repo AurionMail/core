@@ -84,8 +84,9 @@ func main() {
 	var mailBackend mail.MailBackend
 
 	switch backendType {
-	case "jmap":
-		mailBackend = mail.NewJMAPBackend(os.Getenv("JMAP_URL"))
+	case "smtp":
+		// Utilise l'adresse du serveur SMTP (ex: mail.domaine.com:465)
+		mailBackend = mail.NewSMTPBackend(os.Getenv("SMTP_URL"))
 	case "imap":
 		mailBackend = mail.NewIMAPBackend(os.Getenv("IMAP_URL"))
 	default:
@@ -95,7 +96,7 @@ func main() {
 	// -------------------------------
 	//  BACKGROUND SYNC WORKER
 	// -------------------------------
-	stalwartJmapURL := os.Getenv("JMAP_URL")
+	stalwartJmapURL := os.Getenv("STALWART_URL")
 	stalwartAdminKey := os.Getenv("STALWART_API_KEY")
 
 	if stalwartJmapURL != "" && stalwartAdminKey != "" {
