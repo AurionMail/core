@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -122,6 +123,18 @@ func main() {
 	// -------------------------------
 	//  ROUTER
 	// -------------------------------
+	allowedOriginsRaw := os.Getenv("CORS_ALLOWED_ORIGINS")
+	var allowedOrigins []string
+
+	if allowedOriginsRaw != "" {
+		// Découpage par virgule pour obtenir []string{"url1", "url2"}
+		allowedOrigins = strings.Split(allowedOriginsRaw, ",")
+	} else {
+		// Fallback de sécurité par défaut si l'env est vide
+		allowedOrigins = []string{"http://localhost:5173"}
+		logger.Warn("CORS_ALLOWED_ORIGINS not set, falling back to localhost")
+	}
+
 	router := http.NewRouter(
 		logger,
 		userRepo,
@@ -133,6 +146,7 @@ func main() {
 		catchallRepo,
 		mailBackend,
 		serverSecret,
+		allowedOrigins,
 	)
 
 	logger.Info("Starting Boson app-server", "port", cfg.AppPort)

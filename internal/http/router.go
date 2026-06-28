@@ -7,6 +7,7 @@ import (
 	"aurion/core/internal/mail"
 	"log/slog"
 
+	"github.com/gin-contrib/cors" // <--- 1. AJOUTE CET IMPORT
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,10 +22,23 @@ func NewRouter(
 	catchall *repository.RoutingCatchallRepository,
 	mailBackend mail.MailBackend,
 	serverSecret []byte,
+	allowedOrigins []string,
 ) *gin.Engine {
 
 	r := gin.New()
 	r.Use(gin.Recovery())
+
+	// -------------------------------------------------------------------------
+	// 2. CONFIGURATION CORS GLOBALE (CRUCIAL)
+	// -------------------------------------------------------------------------
+	// Ce middleware intercepte TOUTES les requêtes, y compris les requêtes OPTIONS (Preflight)
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     allowedOrigins,
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+	}))
 
 	//
 	// AUTH
@@ -36,6 +50,7 @@ func NewRouter(
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
+	// Tes routes sont parfaitement déclarées ici, elles vont maintenant recevoir le CORS
 	r.POST("/auth/signup", auth.Signup)
 	r.POST("/auth/login", auth.Login)
 	r.POST("/auth/salt", auth.GetSalt)
