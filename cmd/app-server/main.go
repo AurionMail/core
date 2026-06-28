@@ -86,7 +86,7 @@ func main() {
 	switch backendType {
 	case "smtp":
 		// Utilise l'adresse du serveur SMTP (ex: mail.domaine.com:465)
-		mailBackend = mail.NewSMTPBackend(os.Getenv("SMTP_URL"))
+		mailBackend = mail.NewSMTPBackend(os.Getenv("SMTP_URL"), logger)
 	case "imap":
 		mailBackend = mail.NewIMAPBackend(os.Getenv("IMAP_URL"))
 	default:
