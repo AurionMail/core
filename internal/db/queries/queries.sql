@@ -3,6 +3,15 @@ INSERT INTO users (email, password_hash, salt_server, salt_client)
 VALUES ($1, $2, $3, $4)
 RETURNING *;
 
+-- name: UpdateUserByEmail :one
+UPDATE users 
+SET 
+    password_hash = $2, 
+    salt_server = $3, 
+    salt_client = $4
+WHERE email = $1
+RETURNING *;
+
 -- name: GetUserByEmail :one
 SELECT * FROM users
 WHERE email = $1;

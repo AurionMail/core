@@ -699,3 +699,42 @@ func (q *Queries) ResolveIdentityByEmail(ctx context.Context, email string) (Ide
 	)
 	return i, err
 }
+
+const updateUserByEmail = `-- name: UpdateUserByEmail :one
+UPDATE users 
+SET 
+    password_hash = $2, 
+    salt_server = $3, 
+    salt_client = $4
+WHERE email = $1
+RETURNING id, email, password_hash, server_password_encrypted, salt_server, salt_client, created_at, updated_at, is_active
+`
+
+type UpdateUserByEmailParams struct {
+	Email        string `json:"email"`
+	PasswordHash string `json:"password_hash"`
+	SaltServer   string `json:"salt_server"`
+	SaltClient   string `json:"salt_client"`
+}
+
+func (q *Queries) UpdateUserByEmail(ctx context.Context, arg UpdateUserByEmailParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserByEmail,
+		arg.Email,
+		arg.PasswordHash,
+		arg.SaltServer,
+		arg.SaltClient,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.ServerPasswordEncrypted,
+		&i.SaltServer,
+		&i.SaltClient,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsActive,
+	)
+	return i, err
+}
