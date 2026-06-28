@@ -52,7 +52,7 @@ func main() {
 	}
 
 	// Remplace le chemin par le dossier exact où se trouvent tes fichiers .sql
-	if err := goose.Up(dbConn, "internal/db/migrations"); err != nil {
+	if err := goose.Up(dbConn, "migrations"); err != nil {
 		logger.Error("failed to run database migrations", "error", err)
 		return
 	}
