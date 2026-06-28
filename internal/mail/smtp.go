@@ -10,7 +10,7 @@ import (
 )
 
 type SMTPBackend struct {
-	ServerAddr string // Exemple: "mail.aurion.lan:465"
+	ServerAddr string // Exemple: "localhost:587" ou "mail.aurion.lan:587"
 }
 
 func NewSMTPBackend(addr string) *SMTPBackend {
@@ -18,17 +18,10 @@ func NewSMTPBackend(addr string) *SMTPBackend {
 }
 
 func (b *SMTPBackend) VerifyCredentials(ctx context.Context, email, password string) (bool, error) {
-	// Sécurité : Appliquer un timeout via le contexte pour ne pas bloquer les requêtes HTTP
-	dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	// 1. Connexion au serveur (Port 587) avec timeout
+	var d net.Dialer
+	dialCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-
-	// 1. Connexion TLS implicite (Port 465)
-	d := tls.Dialer{
-		Config: &tls.Config{
-			// Passer à true uniquement en développement local si Stalwart utilise un certificat auto-signé
-			InsecureSkipVerify: false,
-		},
-	}
 
 	conn, err := d.DialContext(dialCtx, "tcp", b.ServerAddr)
 	if err != nil {
@@ -36,26 +29,27 @@ func (b *SMTPBackend) VerifyCredentials(ctx context.Context, email, password str
 	}
 	defer conn.Close()
 
-	// 2. Initialisation du client SMTP Go
 	client, err := smtp.NewClient(conn, b.ServerAddr)
 	if err != nil {
 		return false, err
 	}
-	defer client.Quit()
+	defer client.Close()
 
-	// 3. Extraction du Hostname pour SASL Plain Auth
-	host, _, err := net.SplitHostPort(b.ServerAddr)
-	if err != nil {
-		host = b.ServerAddr
+	// 2. Passage en TLS (STARTTLS) - Requis pour sécuriser l'envoi du mot de passe
+	host, _, _ := net.SplitHostPort(b.ServerAddr)
+	tlsConfig := &tls.Config{
+		ServerName:         host,
+		InsecureSkipVerify: false,
+	}
+	if err := client.StartTLS(tlsConfig); err != nil {
+		return false, err
 	}
 
+	// 3. Authentification standard (Go gère tout car il sait que la connexion est TLS)
 	auth := smtp.PlainAuth("", email, password, host)
-
-	// 4. Tentative d'authentification auprès de Stalwart
 	if err := client.Auth(auth); err != nil {
-		// Une erreur ici signifie généralement "Authentication failed" (535)
-		return false, nil
+		return false, nil // Mauvais identifiants
 	}
 
-	return true, nil
+	return true, nil // Identifiants corrects
 }
