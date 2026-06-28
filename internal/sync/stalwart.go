@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -23,7 +24,7 @@ func NewStalwartJMAPConnector(jmapURL, token string) *StalwartJMAPConnector {
 	}
 }
 
-// Structures de requêtage JMAP standard (RFC 8620)
+// JMAPRequest correspond aux structures de requêtage JMAP standard (RFC 8620)
 type JMAPRequest struct {
 	Using       []string        `json:"using"`
 	MethodCalls [][]interface{} `json:"methodCalls"`
@@ -33,35 +34,38 @@ type JMAPResponse struct {
 	MethodResponses [][]interface{} `json:"methodResponses"`
 }
 
-// Structures de données calquées sur les spécifications de l'objet x:Account de Stalwart
+// StalwartAlias correspond aux spécifications réelles des alias renvoyés par Stalwart
 type StalwartAlias struct {
 	Enabled     bool   `json:"enabled"`
 	Name        string `json:"name"`
-	DomainID    string `json:"domainId"`
+	DomainID    string `json:"domainId"` // Attention : souvent l'ID interne (ex: "b")
 	Description string `json:"description"`
 }
 
+// StalwartAccountObj modélise un compte (User ou Group) tel que retourné dans ton payload
 type StalwartAccountObj struct {
-	ID             string          `json:"id"`
-	Type           string          `json:"@type"` // "User" ou "Group"
-	Name           string          `json:"name"`
-	EmailAddress   string          `json:"emailAddress"`
-	Aliases        []StalwartAlias `json:"aliases"`
-	MemberGroupIds []string        `json:"memberGroupIds"` // Pour les Users : les groupes dont ils font partie
+	ID           string `json:"id"`
+	Type         string `json:"@type"` // "User" ou "Group"
+	Name         string `json:"name"`
+	EmailAddress string `json:"emailAddress"`
+
+	// Utilisation de maps pour éviter le crash sur les objets JSON {}
+	Aliases        map[string]StalwartAlias `json:"aliases"`
+	MemberGroupIds map[string]interface{}   `json:"memberGroupIds"`
 }
 
 func (s *StalwartJMAPConnector) FetchIdentities(ctx context.Context) ([]ExternalIdentity, error) {
-	// 1. Préparation du payload JMAP combinant Query + Get (Back-reference #ids)
+	// 1. Préparation du payload JMAP combinant Query + Get
 	payload := JMAPRequest{
 		Using: []string{
 			"urn:ietf:params:jmap:core",
-			"urn:stalwart:jmap", // Capacité officielle indiquée dans tes specs
+			"urn:stalwart:jmap",
 		},
 		MethodCalls: [][]interface{}{
 			{
 				"x:Account/query",
 				map[string]interface{}{
-					"filter": map[string]interface{}{}, // Filtre vide pour tout récupérer
+					"filter": map[string]interface{}{},
 				},
 				"q1",
 			},
@@ -110,7 +114,7 @@ func (s *StalwartJMAPConnector) FetchIdentities(ctx context.Context) ([]External
 		return nil, fmt.Errorf("invalid jmap response: missing method responses")
 	}
 
-	// 2. Récupération de la liste d'objets retournée par x:Account/get (index 1 de MethodResponses)
+	// 2. Extraction du résultat de x:Account/get
 	getBatch := jmapResp.MethodResponses[1]
 	getResults, ok := getBatch[1].(map[string]interface{})
 	if !ok {
@@ -132,31 +136,32 @@ func (s *StalwartJMAPConnector) FetchIdentities(ctx context.Context) ([]External
 		return nil, fmt.Errorf("failed to unmarshal accounts list: %w", err)
 	}
 
-	// 3. Transformation et aiguillage selon tes contraintes métier
+	// 3. Traitement et pivot des données
 	var results []ExternalIdentity
-
-	// Map temporaire pour inverser la relation d'appartenance aux groupes.
-	// Stalwart stocke "User -> fait partie de ces groupes".
-	// Ton besoin est d'avoir "Groupe -> contient ces utilisateurs".
-	// Map qui associe l'ID d'un groupe (string) à la liste des EMAILS de ses membres ([]string)
 	groupMembersMap := make(map[string][]string)
 
 	// ==========================================
-	// Premier passage : Utilisateurs et leurs Alias
+	// Premier passage : Utilisateurs, Groupes d'appartenance et Alias
 	// ==========================================
 	for _, acc := range accounts {
 		if acc.Type == "User" {
-			// 1. Ajouter l'utilisateur principal
+			// A. Enregistrement de l'utilisateur principal
 			results = append(results, ExternalIdentity{
 				Email:    acc.EmailAddress,
 				IsGroup:  false,
 				IsActive: true,
 			})
 
-			// 2. Ajouter ses alias
+			// Extraction du nom de domaine public (ex: "aurionmail.org") à partir de l'adresse principale
+			domain := ""
+			if parts := strings.Split(acc.EmailAddress, "@"); len(parts) == 2 {
+				domain = parts[1]
+			}
+
+			// B. Enregistrement de ses alias (si présents dans la map)
 			for _, alias := range acc.Aliases {
-				if alias.Enabled {
-					aliasEmail := fmt.Sprintf("%s@%s", alias.Name, alias.DomainID)
+				if alias.Enabled && domain != "" {
+					aliasEmail := fmt.Sprintf("%s@%s", alias.Name, domain)
 					results = append(results, ExternalIdentity{
 						Email:       aliasEmail,
 						IsGroup:     false,
@@ -166,31 +171,28 @@ func (s *StalwartJMAPConnector) FetchIdentities(ctx context.Context) ([]External
 				}
 			}
 
-			// 3. Collecter l'appartenance aux groupes
-			// acc.MemberGroupIds contient les IDs des groupes (ex: "grp_abc")
-			// On y associe l'email de l'utilisateur actuel
-			for _, groupID := range acc.MemberGroupIds {
+			// C. Collecte de l'appartenance aux groupes (Inversion de l'index)
+			for groupID := range acc.MemberGroupIds {
 				groupMembersMap[groupID] = append(groupMembersMap[groupID], acc.EmailAddress)
 			}
 		}
 	}
 
 	// ==========================================
-	// Second passage : Groupes autonomes
+	// Second passage : Résolution des Groupes
 	// ==========================================
 	for _, acc := range accounts {
 		if acc.Type == "Group" {
-			// On extrait la liste des EMAILS des membres en utilisant l'ID unique du groupe (acc.ID)
 			members := groupMembersMap[acc.ID]
 			if members == nil {
-				members = []string{} // Évite de renvoyer un slice nil
+				members = []string{} // Évite un slice nil dans le résultat final
 			}
 
 			results = append(results, ExternalIdentity{
-				Email:    acc.EmailAddress, // L'adresse du groupe (ex: contact@aurion.local)
+				Email:    acc.EmailAddress,
 				IsGroup:  true,
 				IsActive: true,
-				Members:  members, // Contient maintenant bien les ADRESSES EMAILS des membres, pas leurs IDs
+				Members:  members, // Contient les adresses email des membres collectés au 1er passage
 			})
 		}
 	}
