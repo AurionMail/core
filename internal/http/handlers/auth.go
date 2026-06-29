@@ -263,6 +263,6 @@ func (h *AuthHandler) GetServerLogin(c *gin.Context) {
 	// 3. Retour de la propriété attendue
 	// Adapte 'ServerPasswordEncrypted' selon le nom exact du champ dans ton struct User (ex: user.ServerPasswordEncrypted)
 	c.JSON(200, gin.H{
-		"server_password_encrypted": user.ServerPasswordEncrypted,
+		"server_password_encrypted": user.ServerPasswordEncrypted.String,
 	})
 }

@@ -50,7 +50,6 @@ func NewRouter(
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// Tes routes sont parfaitement déclarées ici, elles vont maintenant recevoir le CORS
 	r.POST("/auth/signup", auth.Signup)
 	r.POST("/auth/login", auth.Login)
 	r.POST("/auth/salt", auth.GetSalt)
@@ -100,7 +99,7 @@ func NewRouter(
 	authGroup.GET("/sync/routing", syncHandler.SyncRouting)
 	authGroup.POST("/keys/sync", syncHandler.UploadSyncKeys)
 
-	authGroup.POST("/server", auth.GetServerLogin)
+	authGroup.GET("/server", auth.GetServerLogin)
 
 	// INTERNAL
 	routingHandler := handlers.NewRoutingHandler(
