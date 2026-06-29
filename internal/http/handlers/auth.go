@@ -32,9 +32,9 @@ type SignupRequest struct {
 	Email                   string `json:"email"`
 	Password                string `json:"password"`
 	ServerPassword          string `json:"server_password"`
+	EncryptedServerPassword string `json:"encrypted_server_password"`
 	SaltClient              string `json:"salt_client"`
 	SaltServer              string `json:"salt_server"`
-	EncryptedServerPassword string `json:"encrypted_server_password"`
 }
 
 func (h *AuthHandler) Signup(c *gin.Context) {
