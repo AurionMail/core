@@ -34,9 +34,10 @@ func (r *UserRepository) GetUserById(ctx context.Context, id uuid.UUID) (generat
 
 func (r *UserRepository) UpdateUserByEmail(ctx context.Context, user generated.User) (generated.User, error) {
 	return r.q.UpdateUserByEmail(ctx, generated.UpdateUserByEmailParams{
-		Email:        user.Email,
-		PasswordHash: user.PasswordHash,
-		SaltServer:   user.SaltServer,
-		SaltClient:   user.SaltClient,
+		Email:                   user.Email,
+		PasswordHash:            user.PasswordHash,
+		SaltServer:              user.SaltServer,
+		SaltClient:              user.SaltClient,
+		ServerPasswordEncrypted: user.ServerPasswordEncrypted,
 	})
 }

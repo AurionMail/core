@@ -8,7 +8,8 @@ UPDATE users
 SET 
     password_hash = $2, 
     salt_server = $3, 
-    salt_client = $4
+    salt_client = $4,
+    server_password_encrypted = $5
 WHERE email = $1
 RETURNING *;
 

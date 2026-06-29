@@ -7,6 +7,7 @@ package generated
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -705,16 +706,18 @@ UPDATE users
 SET 
     password_hash = $2, 
     salt_server = $3, 
-    salt_client = $4
+    salt_client = $4,
+    server_password_encrypted = $5
 WHERE email = $1
 RETURNING id, email, password_hash, server_password_encrypted, salt_server, salt_client, created_at, updated_at, is_active
 `
 
 type UpdateUserByEmailParams struct {
-	Email        string `json:"email"`
-	PasswordHash string `json:"password_hash"`
-	SaltServer   string `json:"salt_server"`
-	SaltClient   string `json:"salt_client"`
+	Email                   string         `json:"email"`
+	PasswordHash            string         `json:"password_hash"`
+	SaltServer              string         `json:"salt_server"`
+	SaltClient              string         `json:"salt_client"`
+	ServerPasswordEncrypted sql.NullString `json:"server_password_encrypted"`
 }
 
 func (q *Queries) UpdateUserByEmail(ctx context.Context, arg UpdateUserByEmailParams) (User, error) {
@@ -723,6 +726,7 @@ func (q *Queries) UpdateUserByEmail(ctx context.Context, arg UpdateUserByEmailPa
 		arg.PasswordHash,
 		arg.SaltServer,
 		arg.SaltClient,
+		arg.ServerPasswordEncrypted,
 	)
 	var i User
 	err := row.Scan(
