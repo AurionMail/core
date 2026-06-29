@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -28,11 +29,12 @@ func NewAuthHandler(users *repository.UserRepository, sessions *repository.Sessi
 }
 
 type SignupRequest struct {
-	Email          string `json:"email"`
-	Password       string `json:"password"`
-	ServerPassword string `json:"server_password"`
-	SaltClient     string `json:"salt_client"`
-	SaltServer     string `json:"salt_server"`
+	Email                   string `json:"email"`
+	Password                string `json:"password"`
+	ServerPassword          string `json:"server_password"`
+	SaltClient              string `json:"salt_client"`
+	SaltServer              string `json:"salt_server"`
+	EncryptedServerPassword string `json:"encrypted_server_password"`
 }
 
 func (h *AuthHandler) Signup(c *gin.Context) {
@@ -65,6 +67,12 @@ func (h *AuthHandler) Signup(c *gin.Context) {
 	user.PasswordHash = hash
 	user.SaltServer = req.SaltServer
 	user.SaltClient = req.SaltClient
+	if req.EncryptedServerPassword != "" {
+		user.ServerPasswordEncrypted = sql.NullString{
+			String: req.EncryptedServerPassword,
+			Valid:  true,
+		}
+	}
 
 	if _, err := h.Users.UpdateUserByEmail(c, user); err != nil {
 		c.JSON(500, gin.H{"error": "failed to update user"})
